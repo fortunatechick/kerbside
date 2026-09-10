@@ -259,20 +259,35 @@ least 300 visible pixels, background warm-up excluded:
 
 | Measure | Result | Target |
 |---|---|---|
-| Frame count agreement | **26.1%** | ≥ 98% |
-| Recall | 0.801 | — |
-| Precision | 0.841 | — |
-| Mean absolute count error | 1.84 vehicles/frame | — |
-| Merges / splits | 38 / **144** | — |
+| Frame count agreement | **25.0%** | ≥ 98% |
+| Recall | 0.830 | — |
+| Precision | 0.823 | — |
+| Mean absolute count error | 1.62 vehicles/frame | — |
+| Merges / splits | 40 / 87 | — |
 | Throughput at 720p | **4.0 fps** | ≥ 15 fps |
 
-The limiting failure is **fragmentation**, not shadow and not detection: 144
-split events against 38 merges. A vehicle reported as two blobs fails a count
-comparison exactly as a missed vehicle does. Enlarging the closing element
-reduces fragmentation and begins merging adjacent vehicles instead, which trades
-one failure for the other; separating them needs a shape test rather than a
-larger element — two fragments of one vehicle stack vertically inside a single
-plausible silhouette, two vehicles do not.
+The limiting failure is **fragmentation**, not shadow and not detection: a
+vehicle whose dark window band survives thresholding arrives as two components,
+and counting them separately fails a count comparison exactly as a missed
+vehicle does.
+
+Two things were done about it and a third is still needed. The closing element's
+height was being scaled by the wrong axis (see below), which alone accounted for
+most of it. Then S6 gained a geometric fragment merge: every component's ground
+point implies a place on the road, the homography says how tall and wide a
+vehicle standing there would appear, and components that fit inside one such
+silhouette are one vehicle in pieces — two genuine vehicles do not fit inside
+one silhouette, which is what makes them two. That halved split events, from 144
+to 87, and lifted recall from 0.80 to 0.83.
+
+What remains is that frame *agreement* is an exacting measure — every frame must
+carry precisely the right count — and at a mean absolute error of 1.6 vehicles
+per frame it is not close. Reaching 98% needs recall and precision both above
+0.99, which is roughly an order of magnitude better than the current 0.83. The
+honest reading is that the mask is good enough to track from and not yet good
+enough to count from frame by frame, and that closing the remaining gap is a
+matter of the threshold and morphology behaving consistently across the whole
+working range rather than of any one further insight.
 
 Shadow suppression itself works: measured against shadow ground truth (two
 renders identical but for `cast_shadows`), it removes **87–97% of true shadow

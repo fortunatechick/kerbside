@@ -28,6 +28,20 @@ bridge or a short following distance merged. A distance-transform watershed
 splits it at the neck. Splits are reported rather than performed quietly,
 because how often they happen is a measurement of how well S5 did its job.
 
+**And which components are less than one.** The opposite failure is more common
+and was, on this project's own measurements, the dominant source of counting
+error: a vehicle whose dark window band survives thresholding arrives here as
+two components, a roof and a bumper. Counting them separately is exactly as
+wrong as missing the vehicle.
+
+The two cases are separated by geometry rather than by a size threshold, because
+by size they are indistinguishable. Every component's ground point implies a
+place on the road; the homography says how wide and how tall a vehicle standing
+there would appear, and :meth:`PerspectiveModel.image_point_at_height_px`
+supplies the height without needing the camera pose. Components that fit inside
+one such silhouette are one vehicle seen in pieces. Two genuine vehicles do not
+fit inside one silhouette - that is what makes them two vehicles.
+
 Every blob's geometry is taken at its **ground point** - the bottom-centre of
 its bounding box - because that is the point that lies on the road plane. The
 centroid does not, and using it produces distances that are wrong in a way that
@@ -44,10 +58,41 @@ import numpy as np
 from kerbside.core.registry import ParamSpec
 from kerbside.core.types import AnyArray, BBox, Blob, Footprint, Lane, Point2, StageResult
 from kerbside.geometry.perspective import PerspectiveModel, footprint_quad_px, polygon_area_px
-from kerbside.operators.segment import Connectivity, label_components, watershed_split
+from kerbside.operators.segment import (
+    ComponentStats,
+    Connectivity,
+    label_components,
+    watershed_split,
+)
 from kerbside.stages.base import FrameContext, Stage
 
 __all__ = ["BlobStage", "point_in_lane"]
+
+
+def _combine(group: list[ComponentStats]) -> ComponentStats:
+    """One component covering a group of fragments.
+
+    The bounding box is their union and the area their sum. The area is summed
+    rather than taken from the union box because the gap between a roof and a
+    bumper is genuinely background - counting it as vehicle would inflate the
+    footprint and push the blob past the size filter it just became eligible for.
+    """
+    x0 = min(s.x_px for s in group)
+    y0 = min(s.y_px for s in group)
+    x1 = max(s.x_px + s.w_px for s in group)
+    y1 = max(s.y_px + s.h_px for s in group)
+    area = sum(s.area_px for s in group)
+    cx = sum(s.centroid_px[0] * s.area_px for s in group) / max(1, area)
+    cy = sum(s.centroid_px[1] * s.area_px for s in group) / max(1, area)
+    return ComponentStats(
+        label=group[0].label,
+        area_px=area,
+        x_px=x0,
+        y_px=y0,
+        w_px=x1 - x0,
+        h_px=y1 - y0,
+        centroid_px=(cx, cy),
+    )
 
 
 def point_in_lane(point: Point2, lane: Lane) -> bool:
@@ -130,6 +175,34 @@ class BlobStage(Stage):
             ),
         ),
         ParamSpec("split_enabled", "Split merged blobs", "bool", True),
+        ParamSpec(
+            "merge_fragments", "Merge fragments", "bool", True,
+            description=(
+                "Join components that fit inside one plausible vehicle "
+                "silhouette. A vehicle whose window band survives thresholding "
+                "arrives as a roof and a bumper, and counting those separately "
+                "is exactly as wrong as missing the vehicle."
+            ),
+        ),
+        ParamSpec(
+            "merge_height_m", "Silhouette height", "float", 2.0, 0.5, 6.0, 0.1, unit="m",
+            description=(
+                "Height of the silhouette a fragment is tested against. Tall "
+                "enough to cover a van, short enough not to reach the vehicle "
+                "in front."
+            ),
+        ),
+        ParamSpec(
+            "merge_width_m", "Silhouette width", "float", 2.6, 0.5, 6.0, 0.1, unit="m",
+            description="Width of that silhouette, for the same trade-off across the road.",
+        ),
+        ParamSpec(
+            "merge_containment", "Containment required", "float", 0.5, 0.1, 1.0, 0.05,
+            description=(
+                "Fraction of a fragment that must lie inside the silhouette "
+                "before it is absorbed."
+            ),
+        ),
         ParamSpec("split_marker_ratio", "Split marker depth", "float", 0.45, 0.05, 0.95, 0.05),
         ParamSpec(
             "require_lane", "Only inside lanes", "bool", False,
@@ -215,7 +288,12 @@ class BlobStage(Stage):
             )
 
             labelled = label_components(mask, connectivity)
-            candidates = list(labelled.stats)
+            candidates: list[tuple[ComponentStats, tuple[int, ...]]] = [
+                (st, (st.label,)) for st in labelled.stats
+            ]
+            merged_away = 0
+            if model is not None and self.param("merge_fragments"):
+                candidates, merged_away = self._merge_fragments(candidates, model)
             rejected_small = 0
             rejected_large = 0
             rejected_shape = 0
@@ -227,7 +305,7 @@ class BlobStage(Stage):
             next_id = 1
             lanes = ctx.calibration.lanes if ctx.calibration is not None else ()
 
-            for stats in candidates:
+            for stats, member_labels in candidates:
                 if len(blobs) >= int(self.param("max_blobs")):
                     break
                 bbox = BBox(
@@ -246,8 +324,14 @@ class BlobStage(Stage):
                 # mask is seconds per frame.
                 y0, x0 = int(stats.y_px), int(stats.x_px)
                 y1, x1 = y0 + int(stats.h_px), x0 + int(stats.w_px)
-                component = np.asarray(
-                    labelled.labels[y0:y1, x0:x1] == stats.label, dtype=bool
+                window = labelled.labels[y0:y1, x0:x1]
+                # A merged group spans several labels, so select all of them
+                # rather than one - the constituent labels are carried alongside
+                # the statistics precisely so this does not have to be guessed.
+                component = (
+                    np.asarray(window == member_labels[0], dtype=bool)
+                    if len(member_labels) == 1
+                    else np.asarray(np.isin(window, member_labels), dtype=bool)
                 )
                 origin = (x0, y0)
 
@@ -311,6 +395,7 @@ class BlobStage(Stage):
                 "rejected_shape": float(rejected_shape),
                 "rejected_beyond_range": float(rejected_far),
                 "rejected_outside_lane": float(rejected_lane),
+                "fragments_merged": float(merged_away),
                 "splits_this_frame": float(split_here),
                 "splits_total": float(self._split_events),
                 "calibrated": 1.0 if model is not None else 0.0,
@@ -323,6 +408,89 @@ class BlobStage(Stage):
                     "calibrate to make the size filter meaningful."
                 )
         return result
+
+    def _merge_fragments(
+        self,
+        candidates: list[tuple[ComponentStats, tuple[int, ...]]],
+        model: PerspectiveModel,
+    ) -> tuple[list[tuple[ComponentStats, tuple[int, ...]]], int]:
+        """Join components that fit inside one plausible vehicle silhouette.
+
+        Works from the nearest component outwards, because the nearest is the
+        one whose ground point is most likely to be the vehicle's real contact
+        with the road - a roof fragment's own "ground point" is the bottom of the
+        roof, several metres too far away, so seeding from it would build the
+        silhouette in the wrong place.
+
+        For each seed the silhouette is the box from its ground point up to
+        ``merge_height_m`` above the road, ``merge_width_m`` across, projected
+        through the homography. Any component lying mostly inside it is absorbed.
+        Both dimensions are real-world sizes, so one rule holds from the near
+        field to the far, which a pixel threshold could not do.
+        """
+        if len(candidates) < 2:
+            return (candidates, 0)
+
+        containment = float(self.param("merge_containment"))
+        height_m = float(self.param("merge_height_m"))
+        width_m = float(self.param("merge_width_m"))
+
+        order = sorted(candidates, key=lambda item: -(item[0].y_px + item[0].h_px))
+        taken = [False] * len(order)
+        out: list[tuple[ComponentStats, tuple[int, ...]]] = []
+        merged_away = 0
+
+        for i, (seed, seed_labels) in enumerate(order):
+            if taken[i]:
+                continue
+            taken[i] = True
+            box = self._silhouette_box(seed, model, height_m, width_m)
+            if box is None:
+                out.append((seed, seed_labels))
+                continue
+
+            x0, y0, x1, y1 = box
+            group = [seed]
+            labels = list(seed_labels)
+            for j in range(i + 1, len(order)):
+                if taken[j]:
+                    continue
+                other, other_labels = order[j]
+                ox = max(0, min(other.x_px + other.w_px, x1) - max(other.x_px, x0))
+                oy = max(0, min(other.y_px + other.h_px, y1) - max(other.y_px, y0))
+                area = other.w_px * other.h_px
+                if area > 0 and (ox * oy) / area >= containment:
+                    taken[j] = True
+                    group.append(other)
+                    labels.extend(other_labels)
+                    merged_away += 1
+
+            combined = _combine(group) if len(group) > 1 else seed
+            out.append((combined, tuple(labels)))
+        return (out, merged_away)
+
+    def _silhouette_box(
+        self, seed: ComponentStats, model: PerspectiveModel, height_m: float, width_m: float
+    ) -> tuple[float, float, float, float] | None:
+        """Image box a vehicle standing at this component's ground point fills."""
+        ground_x = seed.x_px + seed.w_px / 2.0
+        ground_y = float(seed.y_px + seed.h_px)
+        world = model.image_to_world_m(ground_x, ground_y)
+        if world is None:
+            return None
+        top = model.image_point_at_height_px(world[0], world[1], height_m)
+        if top is None:
+            across, _along = model.scale_px_per_m(ground_y)
+            if across <= 0:
+                return None
+            top_y = ground_y - height_m * across
+        else:
+            top_y = top[1]
+        across, _along = model.scale_px_per_m(ground_y)
+        if across <= 0:
+            return None
+        half_w = width_m * across / 2.0
+        return (ground_x - half_w, min(top_y, ground_y), ground_x + half_w, ground_y)
 
     def _plausible_shape(self, blob: Blob) -> bool:
         """Whether a blob's real-world dimensions are those of a road vehicle.
