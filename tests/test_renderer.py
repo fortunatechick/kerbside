@@ -505,3 +505,104 @@ def test_renderer_rejects_an_out_of_range_frame() -> None:
     )
     with pytest.raises(IndexError, match="out of range"):
         renderer.render_frame(renderer.frame_count)
+
+
+# --------------------------------------------------------------------------
+# Shutter integration
+# --------------------------------------------------------------------------
+
+
+def _blur_scene(shutter_s: float):
+    scene = replace(build_scene("motion_blur", seed=64, duration_s=0.4), supersample=1)
+    return replace(
+        scene,
+        atmosphere=replace(
+            scene.atmosphere, shutter_s=shutter_s, sensor_noise_sigma=0.0
+        ),
+    )
+
+
+def test_shutter_integration_smears_the_silhouette() -> None:
+    """Trap 11 present in the data: a finite exposure stretches the silhouette
+    along the direction of travel, which moves the bounding box and therefore
+    the ground point that every speed is built on."""
+    sharp = TrafficRenderer(_blur_scene(0.0))
+    blurred = TrafficRenderer(_blur_scene(0.020))
+    index = sharp.frame_count // 2
+    a, gt = sharp.render_frame(index)
+    b, _ = blurred.render_frame(index)
+    assert not np.array_equal(a, b)
+
+    moving = [v for v in gt.vehicles if v.visible_area_px > 1500 and v.speed_kmph > 40]
+    assert moving, "no fast vehicle large enough to measure the smear on"
+    v = max(moving, key=lambda v: v.visible_area_px)
+    x, y, w, h = (int(round(c)) for c in v.bbox_px)
+
+    def edge_softness(img: np.ndarray) -> float:
+        """Fraction of the box's bottom band holding intermediate values.
+
+        A sharp silhouette has a step edge - background or body, little in
+        between. Integrating the exposure fills that gap in.
+        """
+        band = cv2.cvtColor(
+            img[max(0, y + h - 12) : y + h + 12, max(0, x) : x + w], cv2.COLOR_BGR2GRAY
+        ).astype(np.float32)
+        lo, hi = float(band.min()), float(band.max())
+        if hi - lo < 20:
+            return 0.0
+        mid = (band - lo) / (hi - lo)
+        return float(((mid > 0.25) & (mid < 0.75)).mean())
+
+    assert edge_softness(b) > edge_softness(a) * 1.3
+
+
+def test_shutter_integration_only_touches_the_vehicles() -> None:
+    """The integration runs inside each vehicle's swept bounding box for speed.
+    That optimisation is only sound if it leaves the rest of the frame exactly
+    as it was, so the road surface far from any vehicle must be untouched."""
+    sharp = TrafficRenderer(_blur_scene(0.0))
+    blurred = TrafficRenderer(_blur_scene(0.020))
+    index = sharp.frame_count // 2
+    a, gt = sharp.render_frame(index)
+    b, _ = blurred.render_frame(index)
+
+    near_vehicles = np.zeros(a.shape[:2], dtype=bool)
+    for v in gt.vehicles:
+        x, y, w, h = (int(round(c)) for c in v.bbox_px)
+        speed_pad = 40
+        near_vehicles[
+            max(0, y - speed_pad) : y + h + speed_pad,
+            max(0, x - speed_pad) : x + w + speed_pad,
+        ] = True
+    changed = np.abs(a.astype(np.int16) - b.astype(np.int16)).max(axis=2) > 2
+    assert changed.any()
+    assert not (changed & ~near_vehicles).any(), (
+        "shutter integration altered pixels far from every vehicle"
+    )
+
+
+def test_shutter_integration_does_not_dominate_the_frame_budget() -> None:
+    """A guard on the cost, not on the wall clock.
+
+    Averaging whole frames per vehicle per sub-pose - the obvious
+    implementation - costs frame area times sample count times vehicle count,
+    which made this scenario tens of times slower than any other. The ratio is
+    generously bounded so the test is about complexity rather than about the
+    machine it runs on.
+    """
+    import time
+
+    def seconds_per_frame(shutter_s: float) -> float:
+        renderer = TrafficRenderer(_blur_scene(shutter_s))
+        indices = range(min(6, renderer.frame_count))
+        started = time.perf_counter()
+        for i in indices:
+            renderer.render_frame(i)
+        return (time.perf_counter() - started) / len(list(indices))
+
+    sharp = seconds_per_frame(0.0)
+    blurred = seconds_per_frame(0.020)
+    assert blurred < 4.0 * sharp + 0.05, (
+        f"shutter integration cost {blurred:.3f} s/frame against {sharp:.3f} s/frame "
+        f"sharp - the per-vehicle region restriction has regressed"
+    )

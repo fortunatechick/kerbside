@@ -965,8 +965,19 @@ class TrafficRenderer:
         canvas = self._apply_atmosphere(canvas, frame_index)
         return canvas
 
-    def _to_ss(self, pts_px: FloatArray) -> Int32Array:
-        return np.round(pts_px * self._ss).astype(np.int32)
+    def _to_ss(
+        self, pts_px: FloatArray, origin_ss: tuple[int, int] = (0, 0)
+    ) -> Int32Array:
+        """Output-resolution points to supersampled integer canvas coordinates.
+
+        ``origin_ss`` shifts the result into the frame of a sub-array of the
+        canvas, which is what lets the shutter integration below work inside a
+        vehicle-sized region instead of over the whole frame.
+        """
+        pts = np.round(pts_px * self._ss).astype(np.int32)
+        if origin_ss != (0, 0):
+            pts = pts - np.array(origin_ss, dtype=np.int32)
+        return pts
 
     def _paint_shadows(self, canvas: UInt8Array, vehicles: list[_Vehicle]) -> None:
         """Darken the road inside each shadow polygon.
@@ -1040,19 +1051,56 @@ class TrafficRenderer:
         the silhouette stretches in the direction of travel and the bounding box
         - and therefore the ground point - acquires exactly the bias trap 11
         warns about. Measuring that bias against ground truth is the point.
+
+        The integration runs inside the swept bounding box of the vehicle rather
+        than over the whole canvas. Averaging full frames would cost the frame
+        area times the sample count times the vehicle count per frame, which for
+        a supersampled 720p scene with a dozen vehicles is hundreds of megabytes
+        of copying per frame - slow enough to make the scenario unusable.
         """
         n = max(2, self.config.atmosphere.shutter_samples)
-        layer = canvas.copy()
-        acc = np.zeros(canvas.shape, dtype=np.float32)
         offsets = np.linspace(-0.5, 0.5, n) * shutter_s * v.speed_mps
+        roi = self._swept_roi_ss(v, float(offsets[0]), float(offsets[-1]))
+        if roi is None:
+            return
+        x0, y0, x1, y1 = roi
+
+        base = canvas[y0:y1, x0:x1].copy()
+        layer = np.empty_like(base)
+        acc = np.zeros(base.shape, dtype=np.float32)
         for off in offsets:
-            layer[:] = canvas
-            self._paint_vehicle(layer, v, s_offset_m=float(off))
-            acc += layer.astype(np.float32)
-        np.copyto(canvas, np.clip(acc / n, 0, 255).astype(np.uint8))
+            layer[:] = base
+            self._paint_vehicle(layer, v, s_offset_m=float(off), origin_ss=(x0, y0))
+            acc += layer
+        canvas[y0:y1, x0:x1] = np.clip(acc / n, 0, 255).astype(np.uint8)
+
+    def _swept_roi_ss(
+        self, v: _Vehicle, s_min_m: float, s_max_m: float, pad_px: int = 3
+    ) -> tuple[int, int, int, int] | None:
+        """Supersampled canvas box covering a vehicle over the whole exposure."""
+        corners = np.vstack(
+            [
+                self._project(self._cuboid_world(v, v.s_m + s_min_m)),
+                self._project(self._cuboid_world(v, v.s_m + s_max_m)),
+            ]
+        )
+        if not np.isfinite(corners).all():
+            return None
+        pts = self._to_ss(corners)
+        x0 = max(0, int(pts[:, 0].min()) - pad_px)
+        y0 = max(0, int(pts[:, 1].min()) - pad_px)
+        x1 = min(self._w_ss, int(pts[:, 0].max()) + pad_px + 1)
+        y1 = min(self._h_ss, int(pts[:, 1].max()) + pad_px + 1)
+        if x1 <= x0 or y1 <= y0:
+            return None
+        return (x0, y0, x1, y1)
 
     def _paint_vehicle(
-        self, canvas: UInt8Array, v: _Vehicle, s_offset_m: float = 0.0
+        self,
+        canvas: UInt8Array,
+        v: _Vehicle,
+        s_offset_m: float = 0.0,
+        origin_ss: tuple[int, int] = (0, 0),
     ) -> None:
         """Draw one cuboid vehicle with its visible faces and surface detail."""
         s_m = v.s_m + s_offset_m
@@ -1068,7 +1116,7 @@ class TrafficRenderer:
             colour = np.clip(body * shade * exposure, 0, 255)
             cv2.fillConvexPoly(
                 canvas,
-                self._to_ss(quad_px).reshape(-1, 1, 2),
+                self._to_ss(quad_px, origin_ss).reshape(-1, 1, 2),
                 (float(colour[0]), float(colour[1]), float(colour[2])),
                 lineType=cv2.LINE_AA,
             )
@@ -1079,7 +1127,7 @@ class TrafficRenderer:
                 pc = np.clip(np.array(patch_bgr, dtype=np.float32) * exposure, 0, 255)
                 cv2.fillConvexPoly(
                     canvas,
-                    self._to_ss(patch_px).reshape(-1, 1, 2),
+                    self._to_ss(patch_px, origin_ss).reshape(-1, 1, 2),
                     (float(pc[0]), float(pc[1]), float(pc[2])),
                     lineType=cv2.LINE_AA,
                 )
