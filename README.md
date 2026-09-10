@@ -9,9 +9,9 @@ No detector. No tracker-by-detection. No learned model anywhere in the pipeline.
 This is what deployed traffic counting and speed measurement systems did for two
 decades before deep learning, and what many still do.
 
-> **Build status: Phase 1 of 8 complete.** The synthetic renderer, the geometry
-> and the ground-truth contract are finished and tested. The operator library,
-> the pipeline stages, the API and the operations console are not yet built.
+> **Build status: Phase 2 of 8 complete.** The synthetic renderer, the geometry
+> and ground-truth contract, and the operator library are finished and tested.
+> The pipeline stages, the API and the operations console are not yet built.
 > Everything claimed below is backed by a test in `tests/`; nothing is claimed
 > for a stage that does not exist yet.
 
@@ -143,6 +143,48 @@ All figures below come from `tests/`, on synthetic data with exact ground truth.
 | Homography from four **half-pixel** clicks, 18–60 m | median and 95th percentile both < 2% — criterion met |
 | Homography from four **whole-pixel** clicks, 18–60 m | ~1.2% median, tail past 2% |
 
+## The operator library
+
+Thirty-five operators across syllabus units 2 to 8, each registered with an id,
+its syllabus unit, a parameter schema and a one-sentence rationale. That
+metadata is not documentation for its own sake: it is what lets the inspector
+build a control for an operator it has never seen, what bounds the values the
+API will accept, and what "reset to default" resets to. A test asserts the
+schema and the function signature cannot drift apart.
+
+Several operators are written out from their definitions rather than called,
+because the point of the exercise is that they are understood: two-dimensional
+correlation and convolution, the normalised DLT, Otsu's threshold, Canny's four
+stages, the Hough accumulator, the Hadamard matrix by Sylvester recursion, HSI
+from its trigonometric definition, m-connectivity labelling, and all three block
+matching searches. Where a mature implementation exists, the tests check
+agreement with it — that is the honest basis for the claim, and it is how the
+Canny bug below was found.
+
+### Measured results
+
+| Study | Result |
+|---|---|
+| Hand-written correlation vs OpenCV, float input | < 1e-3 max absolute difference |
+| Canny vs OpenCV on a real frame | IoU 0.86; 0.97 on a synthetic diagonal |
+| Otsu vs OpenCV (textbook `argmax` mode) | identical |
+| DFT round trip | < 1e-9 |
+| Phase correlation, integer shift | < 0.05 px |
+| Phase correlation, sub-pixel shift | < 0.1 px |
+| Phase correlation under a 1.4x brightness change | < 0.2 px — unaffected |
+| Energy compaction at 4 of 64 coefficients | DCT 0.996 > Hadamard 0.994 > DFT 0.991 |
+| Block matching, exhaustive, on real content | MV MAE **0.32 px**, **96%** exact |
+| Fast searches vs exhaustive | **36x** (2-D log) and **32x** (three-step) fewer comparisons |
+| Fast search accuracy cost | MAE 5.2 px, 53-60% exact, prediction PSNR 35 dB against 42 dB |
+| Test coverage of `operators/` | 84% |
+
+The block-matching row is the one worth reading twice. The fast searches are
+30-odd times cheaper and still predict the frame at 35 dB, which is perfectly
+adequate for a video codec — and they land five pixels from the true vector,
+which is not adequate for a speed measurement. The same algorithm can be a good
+choice for one job and a bad one for the other, and that distinction is the
+finding, not a caveat.
+
 ### Findings worth stating plainly
 
 **The bounding-box ground point is not the centre of the vehicle.** It maps to
@@ -172,11 +214,50 @@ the user clicked, and whatever real dimensions they typed in. The two-point
 distance tool and the implied-camera plausibility check are the only things that
 catch a wrong scale.
 
+**m-connectivity and 8-connectivity always produce identical components.** This
+is provable, and the tests assert it over random masks: if a shared 4-neighbour
+of a diagonal pair is foreground then a 4-path already joins them, and if
+neither is, m admits the diagonal directly. What m changes is the *uniqueness of
+the path* between two pixels, which matters for boundary following and thinning,
+not for counting. The connectivity study therefore reports count differences
+between 4 and 8, and path ambiguity for m, rather than implying all three differ
+in the same way.
+
+**Otsu's criterion is flat across an empty histogram gap.** Every level inside
+the gap separates the two modes equally well, so a plain `argmax` returns the
+lowest one — right against the upper tail of the dark mode. On a background
+difference, where the background is a spike near zero and the foreground a long
+tail, that admits far more noise than a level in the middle would. Taking the
+midpoint of the plateau is no less optimal by Otsu's own criterion and is
+markedly more stable. And a *unimodal* Gaussian already scores 0.64
+separability, so any test for bimodality has to sit well above that number
+rather than at some small one.
+
+**Sub-pixel phase correlation needs more than a parabolic fit.** For a
+fractional shift the inverse transform of a pure phase ramp is a periodic sinc
+whose side lobes alternate in sign, so fitting a parabola through the peak and
+its neighbours is fitting a parabola to something that is not remotely
+parabolic. It lands about a pixel out — and OpenCV's `phaseCorrelate` has the
+same problem, measured. Refining on an upsampled DFT grid instead brings it
+under a tenth of a pixel.
+
 ## Repository layout
 
 ```
 backend/kerbside/
-  core/types.py          typed records; units in every identifier
+  core/
+    types.py             typed records; units in every identifier
+    registry.py          operator ids, units, parameter schemas, rationales
+  operators/
+    point.py             negative, stretch, threshold, log, gamma, equalisation
+    spatial.py           convolution from scratch, box, gaussian, median, sharpen
+    frequency.py         DFT, filters, notch, phase correlation
+    transforms.py        DCT, Hadamard, compression and energy-compaction study
+    morphology.py        erode/dilate/open/close, hit-or-miss, thinning, banded
+    edges.py             Roberts, Prewitt, Sobel, LoG, Canny, Hough
+    segment.py           Otsu, adaptive, 4/8/m connectivity, region growing
+    colour.py            HSV/HSI/YCbCr/normalised rgb/c1c2c3, shadow, naming
+    motion.py            SAD/SSD/MAD, three searches, fields, I/P classification
   geometry/
     homography.py        normalised DLT written from scratch, camera geometry
     calibration.py       four-point calibration, validation, lane definition
@@ -189,7 +270,7 @@ backend/kerbside/
 tests/                   pytest; every claim above is asserted here
 ```
 
-Not yet built: `operators/`, `stages/`, `eval/`, `api/`, and the frontend.
+Not yet built: `stages/`, `eval/`, `api/`, and the frontend.
 
 ## Syllabus mapping
 
@@ -197,10 +278,14 @@ The full mapping table lands with the pipeline. What Phase 1 establishes:
 
 | Unit | Where it appears so far |
 |---|---|
-| 1 | Image formation and coordinates; the perspective scale tables that traps 3 and 4 depend on; the resolution and grey-level degradations |
-| 2 | Power-law and contrast operations in `degrade.py`, applied as input impairments |
-| 3 | DCT compression as a channel impairment in the JPEG round trip |
-| 7 | The HSV structure of the cast-shadow model that S5 will be tested against |
+| 1 | Image formation and coordinates; the perspective scale tables traps 3 and 4 depend on; resolution and grey-level degradation; city-block vs Euclidean gradient magnitude |
+| 2 | Point processing and neighbourhood filtering, including convolution written from its definition; frequency-domain filtering |
+| 3 | DFT and spectra; phase correlation; DCT, Hadamard and the compression study |
+| 4 | Erosion, dilation, opening, closing, hit-or-miss, thinning, reconstruction, and perspective-banded morphology |
+| 5 | Roberts, Prewitt, Sobel, Laplacian, LoG and Canny, plus the Hough transform |
+| 6 | Otsu, adaptive thresholding, 4/8/m connectivity, region growing, split-and-merge, watershed |
+| 7 | Six colour models, circular hue arithmetic, shadow discrimination and colour naming |
+| 8 | SAD/SSD/MAD costs, exhaustive/2-D log/three-step search, motion fields, compensation and I/P classification |
 
 ## Conventions
 

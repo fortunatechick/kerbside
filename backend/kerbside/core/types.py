@@ -31,6 +31,16 @@ UInt8Array = NDArray[np.uint8]
 BoolArray = NDArray[np.bool_]
 Int32Array = NDArray[np.int32]
 
+AnyArray = NDArray[Any]
+"""An array of unspecified dtype.
+
+The operators accept whatever the caller has - a uint8 frame, a float
+intermediate, a bool mask - and coerce internally. Annotating those parameters
+with a specific dtype would be a promise the functions do not make and callers
+do not keep, so the permissive alias is the honest one. Return types stay
+specific wherever a function really does guarantee a dtype.
+"""
+
 # --------------------------------------------------------------------------
 # Enumerations
 # --------------------------------------------------------------------------
