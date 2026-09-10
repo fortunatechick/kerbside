@@ -34,10 +34,11 @@ its separability is the only thing that says so.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import cv2
 import numpy as np
+from scipy.ndimage import find_objects as _find_objects_impl
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components as _csgraph_components
 
@@ -314,6 +315,11 @@ class LabelResult:
         return np.asarray(self.labels == label, dtype=bool)
 
 
+def _find_objects(labels: Int32Array, count: int) -> list[Any]:
+    """Bounding slices for labels 1..count, or None where a label is absent."""
+    return list(_find_objects_impl(labels, max_label=count))
+
+
 def _m_connectivity_edges(mask: BoolArray) -> tuple[AnyArray, AnyArray]:
     """Edge list for m-adjacency over a binary mask.
 
@@ -365,13 +371,19 @@ def _m_connectivity_edges(mask: BoolArray) -> tuple[AnyArray, AnyArray]:
     return np.concatenate(rows), np.concatenate(cols)
 
 
-def label_components(mask: AnyArray, connectivity: Connectivity = 8) -> LabelResult:
+def label_components(
+    mask: AnyArray, connectivity: Connectivity = 8, with_stats: bool = True
+) -> LabelResult:
     """Label the connected components of a binary mask.
 
     4 and 8 use OpenCV's two-pass labelling. m-connectivity has no library
     implementation, so it is built here: the adjacency is expressed as an edge
     list and resolved with a sparse graph traversal, which is the same
     union-find in a different coat and avoids a per-pixel Python loop.
+
+    ``with_stats`` computes each component's area, box and centroid. It is worth
+    a few milliseconds a frame, so a caller that only wants the component count -
+    S5 measuring whether shadow removal separated anything - should turn it off.
     """
     m = np.asarray(mask)
     if m.dtype != np.bool_:
@@ -387,7 +399,7 @@ def label_components(mask: AnyArray, connectivity: Connectivity = 8) -> LabelRes
         return LabelResult(
             labels=labels,
             count=int(count) - 1,
-            stats=component_stats(labels, int(count) - 1),
+            stats=component_stats(labels, int(count) - 1) if with_stats else (),
             connectivity=connectivity,
         )
 
@@ -418,44 +430,48 @@ def label_components(mask: AnyArray, connectivity: Connectivity = 8) -> LabelRes
     return LabelResult(
         labels=m_labels,
         count=int(used.size),
-        stats=component_stats(m_labels, int(used.size)),
+        stats=component_stats(m_labels, int(used.size)) if with_stats else (),
         connectivity="m",
     )
 
 
 def component_stats(labels: Int32Array, count: int) -> tuple[ComponentStats, ...]:
-    """Area, bounding box and centroid for each label from 1 to ``count``."""
+    """Area, bounding box and centroid for each label from 1 to ``count``.
+
+    Bounding boxes come from ``scipy.ndimage.find_objects``, which returns the
+    extent of every label in one C pass. The obvious NumPy expression -
+    ``np.minimum.at`` over the flattened label image, four times - is correct
+    and takes about twenty milliseconds on a 720p frame, which at three calls a
+    frame is a third of the entire budget. ``ufunc.at`` is unbuffered and
+    element-at-a-time by design; it is the wrong tool at this size.
+    """
     if count <= 0:
         return ()
-    flat = np.asarray(labels).ravel()
-    h, w = labels.shape
-    ys, xs = np.divmod(np.arange(flat.size), w)
+    labels = np.asarray(labels, dtype=np.int32)
+    flat = labels.ravel()
+    w = labels.shape[1]
 
     areas = np.bincount(flat, minlength=count + 1)
-    sum_x = np.bincount(flat, weights=xs, minlength=count + 1)
-    sum_y = np.bincount(flat, weights=ys, minlength=count + 1)
-    min_x = np.full(count + 1, w, dtype=np.int64)
-    max_x = np.full(count + 1, -1, dtype=np.int64)
-    min_y = np.full(count + 1, h, dtype=np.int64)
-    max_y = np.full(count + 1, -1, dtype=np.int64)
-    np.minimum.at(min_x, flat, xs)
-    np.maximum.at(max_x, flat, xs)
-    np.minimum.at(min_y, flat, ys)
-    np.maximum.at(max_y, flat, ys)
+    positions = np.arange(flat.size, dtype=np.int64)
+    sum_x = np.bincount(flat, weights=positions % w, minlength=count + 1)
+    sum_y = np.bincount(flat, weights=positions // w, minlength=count + 1)
+    boxes = _find_objects(labels, count)
 
     out: list[ComponentStats] = []
     for label in range(1, count + 1):
         area = int(areas[label])
-        if area == 0:
+        extent = boxes[label - 1]
+        if area == 0 or extent is None:
             continue
+        y_slice, x_slice = extent
         out.append(
             ComponentStats(
                 label=label,
                 area_px=area,
-                x_px=int(min_x[label]),
-                y_px=int(min_y[label]),
-                w_px=int(max_x[label] - min_x[label] + 1),
-                h_px=int(max_y[label] - min_y[label] + 1),
+                x_px=int(x_slice.start),
+                y_px=int(y_slice.start),
+                w_px=int(x_slice.stop - x_slice.start),
+                h_px=int(y_slice.stop - y_slice.start),
                 centroid_px=(float(sum_x[label] / area), float(sum_y[label] / area)),
             )
         )

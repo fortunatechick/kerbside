@@ -49,6 +49,7 @@ __all__ = [
     "thicken",
     "reconstruct_by_dilation",
     "fill_holes",
+    "fill_small_holes",
     "top_hat",
     "bottom_hat",
     "banded_morphology",
@@ -375,16 +376,63 @@ def reconstruct_by_dilation(
     category="morphology",
 )
 def fill_holes(mask: AnyArray) -> BoolArray:
-    """Fill holes in a binary mask by reconstruction from the border."""
+    """Fill holes in a binary mask: every background region the border cannot reach.
+
+    Implemented as a flood fill from outside rather than as an iterated geodesic
+    reconstruction. The two give identical results, but reconstruction converges
+    only after as many dilations as the longest path inside the region, which on
+    a 720p mask is hundreds of passes over the whole frame and dominated the
+    frame budget; the flood fill is a single traversal.
+
+    The image is padded by one pixel first, so a hole that touches the frame
+    edge is still reachable from outside and is correctly left unfilled.
+    """
     m = np.asarray(_as_binary_u8(mask) > 0)
+    h, w = m.shape
+    flood = np.zeros((h + 2, w + 2), np.uint8)
+    flood[1:-1, 1:-1] = m.astype(np.uint8)
+    # cv2.floodFill needs its own one-pixel border on the mask argument.
+    guard = np.zeros((h + 4, w + 4), np.uint8)
+    cv2.floodFill(flood, guard, (0, 0), 2)
+    outside = flood[1:-1, 1:-1] == 2
+    return np.asarray(m | ~outside, dtype=bool)
+
+
+def fill_small_holes(mask: AnyArray, max_area_px: int) -> BoolArray:
+    """Fill enclosed background regions smaller than ``max_area_px``.
+
+    :func:`fill_holes` fills every hole regardless of size, which is right when
+    the holes are windows in a vehicle and catastrophic when one of them is a
+    shadow that another stage just removed: subtracting a shadow from the middle
+    of a larger foreground region leaves an enclosed hole, and an unconditional
+    fill puts the whole shadow straight back.
+
+    Bounding the fill by area separates the two cases cleanly, because they
+    differ by orders of magnitude - a windscreen is hundreds of pixels and a
+    cast shadow is tens of thousands.
+    """
+    if max_area_px < 0:
+        raise ValueError(f"maximum hole area must be non-negative, got {max_area_px}")
+    m = np.asarray(_as_binary_u8(mask) > 0)
+    if max_area_px == 0:
+        return m
+
     background = ~m
-    marker = np.zeros_like(background)
-    marker[0, :] = background[0, :]
-    marker[-1, :] = background[-1, :]
-    marker[:, 0] = background[:, 0]
-    marker[:, -1] = background[:, -1]
-    outside = reconstruct_by_dilation(marker, background)
-    return ~outside
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        background.astype(np.uint8), connectivity=4
+    )
+    if count <= 1:
+        return m
+
+    # Any background component touching the border is outside the object, not a
+    # hole, however small it happens to be inside the frame.
+    border = set(labels[0, :]) | set(labels[-1, :]) | set(labels[:, 0]) | set(labels[:, -1])
+    fill = np.zeros(count, dtype=bool)
+    for label in range(1, count):
+        if label in border:
+            continue
+        fill[label] = stats[label, cv2.CC_STAT_AREA] <= max_area_px
+    return np.asarray(m | fill[labels], dtype=bool)
 
 
 def top_hat(image: AnyArray, element: AnyArray) -> AnyArray:
@@ -416,6 +464,7 @@ def banded_morphology(
     shape: SEShape = "ellipse",
     min_px: int = 3,
     max_px: int = 41,
+    vertical: str = "along",
 ) -> AnyArray:
     """Apply a morphological operation with a perspective-scaled element.
 
@@ -432,6 +481,12 @@ def banded_morphology(
     ``bands`` trades accuracy against cost. Twelve bands over a 720-line frame
     holds the element within a few percent of the exact per-row size, at a
     twelfth of the cost of doing it per row.
+
+    ``vertical`` is passed through to
+    :meth:`~kerbside.geometry.perspective.PerspectiveModel.se_size_px` and
+    decides whether the element's height measures distance along the road or
+    height above it. Use ``"height"`` whenever the target is a vehicle
+    silhouette rather than something lying flat on the road.
     """
     if bands < 1:
         raise ValueError(f"need at least one band, got {bands}")
@@ -450,7 +505,9 @@ def banded_morphology(
         centre_row = (y0 + y1) / 2.0
         if centre_row <= model.horizon_row_px + 1.0:
             continue
-        w, h = model.se_size_px(centre_row, size_m, min_px=min_px, max_px=max_px)
+        w, h = model.se_size_px(
+            centre_row, size_m, min_px=min_px, max_px=max_px, vertical=vertical
+        )
         halo = h // 2 + 1
         a0, a1 = max(0, y0 - halo), min(height, y1 + halo)
         strip = m[a0:a1]

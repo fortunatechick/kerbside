@@ -442,19 +442,44 @@ class PerspectiveModel:
     # -- structuring elements ---------------------------------------------
 
     def se_size_px(
-        self, ground_y_px: float, size_m: float, min_px: int = 3, max_px: int = 41
+        self,
+        ground_y_px: float,
+        size_m: float,
+        min_px: int = 3,
+        max_px: int = 41,
+        vertical: str = "along",
     ) -> tuple[int, int]:
-        """Anisotropic structuring-element size in pixels for a real size.
+        """Structuring-element size in pixels for a real-world size.
 
-        Returns ``(width_px, height_px)``, both odd and at least ``min_px``. The
-        width follows the across-road scale and the height the along-road scale,
-        so the element shrinks with distance and stays wider than it is tall on
-        an oblique view - trap 4 handled by construction rather than by tuning
-        one compromise size.
+        Returns ``(width_px, height_px)``, both odd and at least ``min_px``.
+
+        ``vertical`` chooses what the element's height is measuring, and getting
+        it wrong is a subtle and expensive mistake.
+
+        ``"along"``
+            the height follows the along-road scale, which is right when the
+            element is being applied to something lying *on the road plane* - a
+            footprint, a lane marking, a puddle.
+        ``"height"``
+            the height follows the across-road scale, which is right when the
+            element is being applied to a vehicle's *silhouette*. A silhouette
+            extends upwards from its ground point by the vehicle's height, and
+            a metre of world height projects to almost exactly the same number
+            of pixels as a metre across the road - both are perpendicular to the
+            viewing direction - while a metre *along* the road is foreshortened
+            severely.
+
+        The difference is not marginal. On the reference camera at image row
+        300, the across-road scale is about 25 px/m and the along-road scale
+        about 4 px/m. A closing element meant to bridge a half-metre window band
+        is 12 px tall under the first reading and 2 px tall under the second, so
+        with the wrong choice every vehicle splits into a roof blob and a bumper
+        blob with the window band as a gap between them.
         """
         across, along = self.scale_px_per_m(ground_y_px)
+        vertical_scale = across if vertical == "height" else along
         w = int(np.clip(int(round(size_m * across)), min_px, max_px))
-        h = int(np.clip(int(round(size_m * along)), min_px, max_px))
+        h = int(np.clip(int(round(size_m * vertical_scale)), min_px, max_px))
         if w % 2 == 0:
             w += 1
         if h % 2 == 0:

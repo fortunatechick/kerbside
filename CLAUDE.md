@@ -126,6 +126,64 @@ From Phase 2, the operator library:
   (−1,−1). Getting the diagonal sectors the wrong way round silently deletes
   diagonal edges — it cost 0.86 → 0.40 IoU against OpenCV before it was found.
 
+From Phase 3, the stages:
+
+- **Greyscale background subtraction cannot see a red vehicle.** BT.601 weights
+  red at 0.299, so on this project's own palette against its own asphalt, red is
+  within **1.2 grey levels** of the road, and blue, brown and green within 10 —
+  four of ten body colours. Their *channel* difference is 30 to 94. The default
+  difference is therefore the max across channels; `difference_mode="grey"` is
+  kept only as the baseline that demonstrates the problem.
+- **Hue is undefined where saturation is near zero, and asphalt is neutral**
+  (saturation ≈ 0.075). Enforcing a 10-unit hue tolerance there rejects half of
+  a correctly-identified shadow, because the "hue" being compared is the
+  arctangent of two small noisy differences. S5 applies the hue condition only
+  above a saturation floor.
+- **A closing element's *height* must be scaled by vehicle height, not by
+  distance along the road.** A silhouette extends upward from its ground point,
+  and a metre of height projects at close to the across-road scale (≈25 px/m at
+  row 300) while a metre along the road projects at ≈4 px/m. Sized the wrong
+  way the element is a couple of pixels tall, the dark window band survives as a
+  gap, and **every vehicle reports as two blobs** — a roof and a bumper.
+- **Filling holes after shadow removal restores the shadow.** Subtracting a
+  shadow from inside a larger foreground region leaves an *enclosed* hole, so an
+  unbounded `fill_holes` puts it straight back. The restoration is bounded by
+  area: a windscreen is hundreds of pixels, a cast shadow tens of thousands.
+- **Selective update needs the previous frame's mask handed to it.** The frame
+  context is rebuilt per frame, so `ctx.foreground` is always `None` when S3
+  runs; keying the update on it meant the feature silently never fired.
+- **The stabiliser aligns to the first frame**, so what it reports is
+  displacement *relative* to that frame. The first frame's own offset survives
+  as a constant — harmless, because the background model is built in the same
+  frame of reference, but it must be subtracted before comparing against
+  absolute ground truth.
+
+And two mistakes in the *evaluation*, which were costing the pipeline more than
+its actual defects:
+
+- **The visibility gate says what must be found, not what may be found.** Gating
+  ground truth by range while scoring every blob counts a correct detection just
+  outside the range as a false positive. Worst exactly where it matters least: a
+  one-pixel ground-point error at 100 m is about eight metres.
+- **Recall counts vehicles found, not blob-vehicle pairs.** A vehicle reported
+  as two fragments has been found once. Crediting it twice let recall exceed
+  1.0, which is how the error surfaced.
+
+## Performance notes
+
+The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered:
+
+- `np.minimum.at` / `np.maximum.at` over a flattened label image is ~23 ms per
+  call on 720p and was called three times a frame. `scipy.ndimage.find_objects`
+  does the same work in one C pass.
+- `fill_holes` by iterated geodesic reconstruction converges only after as many
+  dilations as the longest path inside a hole — hundreds of full-frame passes.
+  A flood fill from outside is one traversal.
+- Extracting a component as `labels == label` over the whole frame costs frame
+  area × component count. Slice the bounding box first.
+- float32 throughout the mask stages: the input is 8-bit and nothing here needs
+  15 significant figures.
+
 ## Commands
 
 ```bash
@@ -145,7 +203,14 @@ Do not start a phase until the previous gate passes. Commit at each gate.
 
 1. **Renderer, geometry, ground truth** — done.
 2. **Operator library** (`operators/`) with known-answer tests — done.
-3. Stages S1–S6 and `eval/metrics.py`.
+3. **Stages S1–S6 and `eval/metrics.py`** — built and tested, **gate not met**.
+   Frame-count agreement is 26% against a 98% target and throughput is 4.0 fps
+   against 15. The limiting failure is fragmentation (144 split events against
+   38 merges): a vehicle reported as two blobs fails a count comparison just as
+   surely as a missed one. Enlarging the closing element trades fragmentation
+   for vehicle-to-vehicle merging rather than fixing either, so the next step is
+   to separate the two by *shape* — a fragment and its sibling stack vertically
+   within one plausible silhouette, whereas two vehicles do not.
 4. Stages S7–S9: tracking, counting, both speed routes, classification.
 5. Backend API: REST, MJPEG, WebSocket telemetry, stage cache.
 6. Frontend shell, Console and Calibration views.

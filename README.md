@@ -9,11 +9,16 @@ No detector. No tracker-by-detection. No learned model anywhere in the pipeline.
 This is what deployed traffic counting and speed measurement systems did for two
 decades before deep learning, and what many still do.
 
-> **Build status: Phase 2 of 8 complete.** The synthetic renderer, the geometry
-> and ground-truth contract, and the operator library are finished and tested.
-> The pipeline stages, the API and the operations console are not yet built.
-> Everything claimed below is backed by a test in `tests/`; nothing is claimed
-> for a stage that does not exist yet.
+> **Build status: Phases 1 and 2 complete; Phase 3 built but below target.**
+> The renderer, the geometry and ground-truth contract, and the operator library
+> are finished and tested. Stages S1–S6 and the evaluation metrics are built and
+> working, but do **not** meet the Phase 3 accuracy or throughput targets — the
+> measured figures and the reason are in [Detection accuracy](#detection-accuracy-phase-3-target-not-met)
+> below. The API and the operations console are not built.
+>
+> Everything claimed here is backed by a test in `tests/`. Nothing is claimed for
+> a stage that does not exist, and nothing that falls short is reported as
+> though it did not.
 
 ## Limitations — read this first
 
@@ -233,6 +238,81 @@ markedly more stable. And a *unimodal* Gaussian already scores 0.64
 separability, so any test for bimodality has to sit well above that number
 rather than at some small one.
 
+## The pipeline
+
+Six stages, each with its syllabus units, a rationale surfaced in the inspector,
+and a validated parameter schema.
+
+| Stage | Does | Units |
+|---|---|---|
+| S1 Ingest | Colour conversion, and the frame interval every speed divides by — measured from timestamps, not taken from the container | 1, 2 |
+| S2 Stabilise | Phase-correlation shake compensation, with a confidence test that declines rather than guessing | 3 |
+| S3 Background | Running average, temporal median, three-frame difference and a fixed reference; selective update; colour differencing | 2, 4 |
+| S4 Foreground | Otsu, median filter, perspective-scaled opening and closing, hole filling | 2, 4, 6 |
+| S5 Shadow | HSV shadow suppression with circular hue and a saturation-gated hue test | 7 |
+| S6 Blobs | Connected components at 4/8/m connectivity, perspective size filter, shape plausibility, watershed splitting, lane assignment | 1, 6 |
+
+### Detection accuracy (Phase 3 target NOT met)
+
+Measured on the free-flow clip over an 18–80 m working range, vehicles of at
+least 300 visible pixels, background warm-up excluded:
+
+| Measure | Result | Target |
+|---|---|---|
+| Frame count agreement | **26.1%** | ≥ 98% |
+| Recall | 0.801 | — |
+| Precision | 0.841 | — |
+| Mean absolute count error | 1.84 vehicles/frame | — |
+| Merges / splits | 38 / **144** | — |
+| Throughput at 720p | **4.0 fps** | ≥ 15 fps |
+
+The limiting failure is **fragmentation**, not shadow and not detection: 144
+split events against 38 merges. A vehicle reported as two blobs fails a count
+comparison exactly as a missed vehicle does. Enlarging the closing element
+reduces fragmentation and begins merging adjacent vehicles instead, which trades
+one failure for the other; separating them needs a shape test rather than a
+larger element — two fragments of one vehicle stack vertically inside a single
+plausible silhouette, two vehicles do not.
+
+Shadow suppression itself works: measured against shadow ground truth (two
+renders identical but for `cast_shadows`), it removes **87–97% of true shadow
+pixels** per frame. Turning it off does not improve the count, and rendering
+with no shadows at all leaves the frame-agreement figure essentially unchanged —
+which is how fragmentation was identified as the real constraint rather than
+assumed away.
+
+### Findings worth stating plainly
+
+**A greyscale background subtraction cannot see a red vehicle.** BT.601 weights
+red at 0.299, so on this project's palette against its own asphalt, a red body
+differs from the road by **1.2 grey levels** — and by 94 in its red channel.
+Blue, brown and green are within 10 levels too: four of ten body colours are not
+merely hard to detect but invisible. The mask contains their shadow and not
+them, which looks like a shadow problem and is a colour problem introduced two
+stages earlier. The difference is therefore taken across colour channels.
+
+**Hue is undefined where saturation is near zero, and asphalt is neutral.** At a
+background saturation of about 0.075, the hue difference across foreground
+pixels has a median of 10 and a 95th percentile of 67 — that is not a
+measurement of colour, it is the arctangent of two small noisy differences.
+Applying the textbook 10-unit hue tolerance there rejects half of a correctly
+identified shadow, so the hue condition is enforced only above a saturation
+floor.
+
+**A closing element's height must scale with vehicle height, not with distance
+along the road.** A silhouette extends upward from its ground point, and a metre
+of height projects at close to the across-road scale — about 25 px/m at image
+row 300 — while a metre along the road projects at about 4 px/m. Sized the wrong
+way the element comes out two pixels tall, the dark window band across a vehicle
+survives as a gap, and every vehicle is reported as two blobs. It presents as a
+tracking problem and is a structuring element that was six times too short.
+
+**Filling holes after removing a shadow restores the shadow.** Subtracting a
+shadow from inside a larger foreground region leaves an *enclosed* hole, so an
+unbounded hole fill puts the whole thing straight back. Bounding the fill by
+area separates the two cases cleanly, because they differ by orders of
+magnitude.
+
 **Sub-pixel phase correlation needs more than a parabolic fit.** For a
 fractional shift the inverse transform of a pure phase ramp is a periodic sinc
 whose side lobes alternate in sign, so fitting a parabola through the peak and
@@ -262,6 +342,17 @@ backend/kerbside/
     homography.py        normalised DLT written from scratch, camera geometry
     calibration.py       four-point calibration, validation, lane definition
     perspective.py       expected size and SE size as a function of image row
+  stages/
+    base.py              stage scaffolding: params, timing, frame context
+    s1_ingest.py         decode, measure the true frame interval, convert
+    s2_stabilise.py      phase-correlation shake compensation
+    s3_background.py     running average, temporal median, three-frame
+    s4_foreground.py     Otsu, median, perspective-scaled morphology
+    s5_shadow.py         HSV shadow suppression
+    s6_blobs.py          components, perspective size filter, splitting
+    pipeline.py          orchestration, per-stage timings
+  eval/
+    metrics.py           detection and counting metrics against ground truth
   data/
     renderer.py          synthetic scene renderer with exact ground truth
     scenarios.py         presets, each targeting a specific failure mode
@@ -270,7 +361,7 @@ backend/kerbside/
 tests/                   pytest; every claim above is asserted here
 ```
 
-Not yet built: `stages/`, `eval/`, `api/`, and the frontend.
+Not yet built: `api/` and the frontend.
 
 ## Syllabus mapping
 

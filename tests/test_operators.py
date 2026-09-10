@@ -1362,7 +1362,8 @@ def test_declared_parameters_match_the_function_signatures() -> None:
             if declared is None:
                 problems.append(f"{spec.operator_id}: declares unknown parameter {param.name!r}")
                 continue
-            if declared.default is not inspect.Parameter.empty and declared.default != param.default:
+            has_default = declared.default is not inspect.Parameter.empty
+            if has_default and declared.default != param.default:
                 problems.append(
                     f"{spec.operator_id}.{param.name}: schema default {param.default!r} "
                     f"but signature default {declared.default!r}"
