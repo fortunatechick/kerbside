@@ -16,11 +16,21 @@ decades before deep learning, and what many still do.
 > thing on one port. 279 tests pass, `ruff` is clean and `mypy --strict` is clean
 > over `core/`, `geometry/` and `operators/`.
 >
-> **Phase 3's accuracy gate was not met and has not been rewritten to fit.**
-> Frame-count agreement is 25% against a 98% target and throughput is below the
-> 15 fps target — the measured figures and the diagnosis are in
-> [Detection accuracy](#detection-accuracy-phase-3-target-not-met) below.
-> The end-to-end measurement results are in [Measurement accuracy](#measurement-accuracy-phase-4).
+> **Three of the eight gates were not met, and none has been rewritten to fit.**
+> Every gate was written before any code existed.
+>
+> | Phase | Gate | Outcome |
+> |---|---|---|
+> | 3 Detection | blob count matches truth in ≥ 98% of frames | **not met — 25%** |
+> | 4 Measurement | counting ≥ 99%, speed MAE ≤ 2 km/h, lane ≥ 99% | **not met — 90.9% / 9.4 / 81%** |
+> | 5 API | annotated stream ≥ 15 fps at 720p | **not met — 1.1 fps** |
+> | 6 Console | calibrate through the UI to within 2% of the known homography | built, not yet measured |
+>
+> Phases 1, 2, 7 and 8 met theirs. The measured figures and the diagnosis are in
+> [Detection accuracy](#detection-accuracy-phase-3-target-not-met) and
+> [Measurement accuracy](#measurement-accuracy-phase-4) below. The Phase 3 and
+> Phase 4 shortfalls are the same defect seen one stage apart; the Phase 5 one is
+> separate and simpler.
 >
 > Everything claimed here is backed by a test in `tests/`. Nothing is claimed for
 > a stage that does not exist, and nothing that falls short is reported as
@@ -350,9 +360,11 @@ with no shadows at all leaves the frame-agreement figure essentially unchanged �
 which is how fragmentation was identified as the real constraint rather than
 assumed away.
 
-### Measurement accuracy (Phase 4)
+### Measurement accuracy (Phase 4 target NOT met)
 
-Free-flow clip, 12 s, scored against exact per-frame ground truth.
+Free-flow clip, 12 s, scored against exact per-frame ground truth. The gate asked
+for counting ≥ 99%, speed MAE ≤ 2 km/h and lane ≥ 99%. **None of the three is
+met.** What the two speed routes do deliver is a diagnosis of why.
 
 | Measure | Result |
 |---|---|

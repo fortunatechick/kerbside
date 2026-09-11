@@ -816,44 +816,66 @@ image  (u, v) in pixels
 <!-- ================================================== 12 · phases ==== -->
 <section class="slide" data-title="Build phases">
   <div class="eyebrow">11<span class="sep"></span>Method</div>
-  <h2>Eight phases, each with a gate</h2>
+  <h2>Eight phases, each with a gate set in advance</h2>
   <p class="lede">
-    A phase does not close because the code runs. It closes because a stated,
-    measurable criterion is met — or it is recorded as not met and the reason is
-    given.
+    Every gate below was written before any code existed. Four were met, three
+    were not, and one is built but has not been measured against its own
+    criterion. <strong>None of them has been rewritten to fit the result.</strong>
   </p>
   <div class="scroll">
     <table>
-      <thead><tr><th>Phase</th><th>Deliverable</th><th>Gate</th><th class="n">Status</th></tr></thead>
+      <thead><tr><th>Phase</th><th>Gate, as written in advance</th><th class="n">Outcome</th></tr></thead>
       <tbody>
-        <tr><td><strong>1</strong> Geometry &amp; data</td><td>Homography, calibration, synthetic renderer, ground truth</td>
-            <td>Round-trip projection error under 1 px</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>2</strong> Operators</td><td>35 hand-written operators, units 1–8</td>
-            <td>Each asserted against a closed form or an OpenCV oracle</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>3</strong> Detection</td><td>S1–S6, mask to blobs</td>
-            <td>≥ 98% per-frame blob-count agreement</td><td class="n"><span class="chip bad">not met — 25%</span></td></tr>
-        <tr><td><strong>4</strong> Tracking &amp; measurement</td><td>S7–S9, counts, speeds, lanes, classes</td>
-            <td>Both routes measured against truth, difference explained</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>5</strong> API</td><td>REST, MJPEG, WebSocket, stage cache</td>
-            <td>Every endpoint exercised end to end</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>6</strong> Console</td><td>Eight views, live parameters, overlays</td>
-            <td>Every pipeline claim checkable by looking</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>7</strong> Studies</td><td>Nine ablations, analytics, report</td>
-            <td>Each study answers a stated question</td><td class="n"><span class="chip ok">passed</span></td></tr>
-        <tr><td><strong>8</strong> Hardening</td><td>Tests, typing, lint, documentation</td>
-            <td>Suite green, mypy strict, ruff clean</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>1</strong> Geometry &amp; data</td>
+            <td>Recorded ground point equals the projection of the recorded world position to within 1&nbsp;px; the DLT recovers the rendering homography</td>
+            <td class="n"><span class="chip ok">met &mdash; &lt;10&#8315;&#8310; px</span></td></tr>
+        <tr><td><strong>2</strong> Operator library</td>
+            <td>Known-answer tests for every operator: hand-worked 3&times;3 mean, Otsu on a synthetic bimodal histogram, DFT round trip, block matching recovering an exact shift</td>
+            <td class="n"><span class="chip ok">met</span></td></tr>
+        <tr><td><strong>3</strong> Stages S1&ndash;S6</td>
+            <td>Per-frame blob count matches ground truth in &ge;&nbsp;98% of frames</td>
+            <td class="n"><span class="chip bad">not met &mdash; 25%</span></td></tr>
+        <tr><td><strong>4</strong> Stages S7&ndash;S9</td>
+            <td>Counting &ge;&nbsp;99%, speed MAE &le;&nbsp;2&nbsp;km/h, lane &ge;&nbsp;99%, both speed routes cross-compared</td>
+            <td class="n"><span class="chip bad">not met &mdash; 90.9% / 9.4 / 81%</span></td></tr>
+        <tr><td><strong>5</strong> Backend API</td>
+            <td>Annotated stream &ge;&nbsp;15&nbsp;fps at 720p; stage inspection under 400&nbsp;ms warm</td>
+            <td class="n"><span class="chip bad">not met &mdash; 1.1 fps</span></td></tr>
+        <tr><td><strong>6</strong> Shell, Console, Calibration</td>
+            <td>Calibrate through the UI to within 2% of the known homography; the metre grid looks square</td>
+            <td class="n"><span class="chip warn">built, not measured</span></td></tr>
+        <tr><td><strong>7</strong> Shadow, Motion, Analytics</td>
+            <td>Exhaustive search under 1&nbsp;px vector error at &ge;&nbsp;20&times; the cost of 2-D log; the shadow case list finds real merge-split events</td>
+            <td class="n"><span class="chip ok">met &mdash; 0.32&nbsp;px at 32&ndash;36&times;</span></td></tr>
+        <tr><td><strong>8</strong> Hardening</td>
+            <td>Suite green, mypy strict, ruff clean</td>
+            <td class="n"><span class="chip ok">met &mdash; 279 tests</span></td></tr>
       </tbody>
     </table>
   </div>
-  <div class="card warn">
-    <h3 style="margin-top:0">Why Phase 3 is reported as failed rather than re-scoped</h3>
-    <p class="small" style="margin:0">
-      The 98% gate was set before any code was written, and it was set high on
-      purpose. Lowering it after the fact would have made the number meaningless.
-      What the failure produced instead is the most useful diagnostic work in the
-      project — the identification of fragmentation, not shadow, as the binding
-      constraint. That is on the results slide, with the experiment that proved it.
-    </p>
+  <div class="cols c2">
+    <div class="card warn">
+      <h3 style="margin-top:0">Three misses, and they are the same miss</h3>
+      <p class="small" style="margin:0">
+        Phases 3, 4 and 5 fail for one reason each, and two of the three trace to
+        the same place. The count and class shortfalls in Phase 4 are the Phase 3
+        mask fragmenting, seen one stage later. The Phase 5 throughput shortfall is
+        a separate problem and a simpler one: S8 block matching costs about 600&nbsp;ms
+        a frame. <strong>One defect, one cost, honestly separated</strong> &mdash; which is
+        more useful than three gates quietly loosened until they went green.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Why the gates stay as written</h3>
+      <p class="small" style="margin:0">
+        A gate chosen after the measurement is not a gate, it is a description. The
+        98% and 99% figures were set high deliberately, to make a shortfall
+        visible rather than arguable. What the Phase 3 miss produced &mdash; the
+        shadow-free oracle experiment that identified fragmentation &mdash; is the
+        most useful work in the project, and a softer gate would have produced
+        none of it.
+      </p>
+    </div>
   </div>
 </section>
 
@@ -949,12 +971,12 @@ image  (u, v) in pixels
 <!-- ================================================== 15 · results 3 = -->
 <section class="slide" data-title="Results — measurement">
   <div class="eyebrow">14<span class="sep"></span>Results &middot; end-to-end measurement</div>
-  <h2>Phase 4: the routes disagree, and the reason is the mask</h2>
-  <p class="lede">Free-flow scenario, 12 seconds, against exact ground truth.</p>
+  <h2>Phase 4: the gate is missed, and the routes say why</h2>
+  <p class="lede">Free-flow scenario, 12 seconds, against exact ground truth. The gate asked for counting &ge;&nbsp;99%, speed MAE &le;&nbsp;2&nbsp;km/h and lane &ge;&nbsp;99%. None of the three is met. What the two routes do deliver is a diagnosis.</p>
   <div class="cols c4" style="margin-bottom:14px">
-    <div class="stat"><div class="k">Count accuracy</div><div class="v ok">90.9<span class="u">%</span></div><div class="n">12 counted, 11 expected</div></div>
-    <div class="stat"><div class="k">Lane assignment</div><div class="v ok">81<span class="u">%</span></div><div class="n">correct lane</div></div>
-    <div class="stat"><div class="k">Size class</div><div class="v warn">52<span class="u">%</span></div><div class="n">downstream of the mask</div></div>
+    <div class="stat"><div class="k">Count accuracy</div><div class="v warn">90.9<span class="u">%</span></div><div class="n">gate &ge; 99%</div></div>
+    <div class="stat"><div class="k">Lane assignment</div><div class="v warn">81<span class="u">%</span></div><div class="n">gate &ge; 99%</div></div>
+    <div class="stat"><div class="k">Size class</div><div class="v bad">52<span class="u">%</span></div><div class="n">downstream of the mask</div></div>
     <div class="stat"><div class="k">Route B advantage</div><div class="v acc">2.1&times;</div><div class="n">lower MAE than Route A</div></div>
   </div>
   <div class="scroll">

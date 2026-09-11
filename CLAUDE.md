@@ -272,6 +272,11 @@ NumPy/SciPy version mismatch. Use `.venv/Scripts/python.exe` on Windows.
 
 Do not start a phase until the previous gate passes. Commit at each gate.
 
+**Gates are written before the code and never rewritten afterwards.** A gate
+chosen after the measurement is not a gate, it is a description. Three of these
+eight are not met; that is recorded, not adjusted. If a phase's gate is not
+measured, the status is "not measured" and never "passed".
+
 1. **Renderer, geometry, ground truth** — done.
 2. **Operator library** (`operators/`) with known-answer tests — done.
 3. **Stages S1–S6 and `eval/metrics.py`** — built and tested, **gate not met**.
@@ -284,11 +289,22 @@ Do not start a phase until the previous gate passes. Commit at each gate.
    and its sibling stack vertically within one plausible silhouette, whereas two
    vehicles do not. **The gate stays recorded as failed.** It was set before any
    code was written; lowering it afterwards would make it meaningless.
-4. **Stages S7–S9** — done. Count 90.9%, lane 81%, class 52%; Route A (ground
-   point) 19.5 km/h MAE, Route B (block matching) 9.4. See below.
-5. **Backend API** — done. REST, MJPEG, WebSocket telemetry, stage cache.
-6. **Frontend shell, Console and Calibration** — done.
-7. **Shadow Lab, Motion Lab, Analytics** — done.
+4. **Stages S7–S9** — built, **gate not met**. The gate was counting ≥ 99%,
+   speed MAE ≤ 2 km/h, lane ≥ 99%, both routes cross-compared. Measured: count
+   90.9%, lane 81%, class 52%, Route A (ground point) 19.5 km/h MAE, Route B
+   (block matching) 9.4. The cross-comparison is done and is the useful part;
+   the three accuracy criteria are not met, and the count and class shortfalls
+   are the Phase 3 mask seen one stage later.
+5. **Backend API** — built, **throughput gate not met**. REST, MJPEG, WebSocket
+   telemetry, stage cache, 34 end-to-end tests. The gate asked for an annotated
+   stream at ≥ 15 fps at 720p; the full pipeline runs at 1.1 fps because S8
+   block matching costs ~600 ms a frame.
+6. **Frontend shell, Console and Calibration** — built. Its gate (calibrate
+   through the UI to within 2% of the known homography, metre grid square) has
+   **not been measured**; say so rather than implying it passed.
+7. **Shadow Lab, Motion Lab, Analytics** — done, gate met on the motion half:
+   exhaustive search at 0.32 px vector error, 32–36× the cost of the fast
+   searches against a ≥ 20× criterion.
 8. **Ablation Lab, report, docs** — done. `tests/test_api.py` exercises every
    endpoint end to end, which is what Phase 5's gate actually asks for; driving
    the routes by hand was not it, and three of the defects found while wiring
