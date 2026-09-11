@@ -5,6 +5,7 @@ export type ViewId =
   | "console"
   | "calibration"
   | "pipeline"
+  | "operators"
   | "shadow"
   | "motion"
   | "analytics"

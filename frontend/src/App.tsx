@@ -24,6 +24,7 @@ import { Inspector } from "./components/Inspector";
 import { ConsoleView } from "./views/ConsoleView";
 import { CalibrationView } from "./views/CalibrationView";
 import { PipelineView } from "./views/PipelineView";
+import { OperatorsView } from "./views/OperatorsView";
 import { ShadowLab } from "./views/ShadowLab";
 import { MotionLab } from "./views/MotionLab";
 import { AnalyticsView } from "./views/AnalyticsView";
@@ -34,6 +35,7 @@ const VIEWS: { id: ViewId; label: string; glyph: string; hint: string }[] = [
   { id: "console", label: "Console", glyph: "▶", hint: "Live video, overlays, counts" },
   { id: "calibration", label: "Calibration", glyph: "⊹", hint: "Four points, then metres" },
   { id: "pipeline", label: "Pipeline", glyph: "⧉", hint: "Every stage's output" },
+  { id: "operators", label: "Operators", glyph: "⌗", hint: "All 35, by syllabus unit" },
   { id: "shadow", label: "Shadow lab", glyph: "◑", hint: "The HSV test, decomposed" },
   { id: "motion", label: "Motion lab", glyph: "⇄", hint: "Block matching strategies" },
   { id: "analytics", label: "Analytics", glyph: "⌸", hint: "Flow, speeds, headways" },
@@ -205,6 +207,10 @@ function ViewSwitch({
       return <CalibrationView loaded={loaded} />;
     case "pipeline":
       return <PipelineView loaded={loaded} />;
+    case "operators":
+      // The registry is static, so this view needs no source loaded - which is
+      // also why it is the one thing worth reading before picking a clip.
+      return <OperatorsView />;
     case "shadow":
       return <ShadowLab loaded={loaded} />;
     case "motion":

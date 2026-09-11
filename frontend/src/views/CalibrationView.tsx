@@ -6,27 +6,35 @@
  * rectangle you clicked was really 3.5 m wide — four points always fit a
  * homography exactly, so the residual is structurally zero. The view therefore
  * leads with the *implied camera* (height, tilt, focal length) and a plain
- * statement of whether those numbers are physically plausible, because that is
- * the check that actually catches a wrong calibration.
+ * statement of whether those numbers are physically plausible.
+ *
+ * Two further checks are offered because the plausibility test is necessary and
+ * not sufficient: a **distance tool**, which is the only thing that catches a
+ * calibration wrong by a constant factor, and a **bird's-eye rectification**,
+ * where a wrong homography makes parallel lane lines visibly splay.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, frameUrl, type CalibrationInfo } from "../lib/api";
+import { api, birdseyeUrl, frameUrl, type CalibrationInfo } from "../lib/api";
 import { metres } from "../lib/format";
 import { Button, Empty, ErrorNote, Panel, Stat } from "../components/primitives";
 
 type Pt = [number, number];
+type Mode = "calibrate" | "measure";
 
 export function CalibrationView({ loaded }: { loaded: boolean }) {
   const client = useQueryClient();
   const info = useQuery({ queryKey: ["calibration"], queryFn: api.calibration });
 
+  const [mode, setMode] = useState<Mode>("calibrate");
   const [points, setPoints] = useState<Pt[]>([]);
+  const [span, setSpan] = useState<Pt[]>([]);
   const [widthM, setWidthM] = useState(3.5);
   const [lengthM, setLengthM] = useState(12.0);
   const [lanes, setLanes] = useState(4);
   const [natural, setNatural] = useState<[number, number]>([1280, 720]);
+  const [birdseye, setBirdseye] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const calibrate = useMutation({
@@ -41,42 +49,88 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
     onSuccess: () => void client.invalidateQueries(),
   });
 
+  const measure = useMutation({
+    mutationFn: ({ a, b }: { a: Pt; b: Pt }) => api.measure(a, b),
+  });
+
   const grid = useQuery({
     queryKey: ["grid", info.data?.calibrated],
     queryFn: api.grid,
     enabled: Boolean(info.data?.calibrated),
   });
 
+  // Two clicks make a span; the third starts a new one, so there is never a
+  // stale half-measurement on screen.
+  const addPoint = useCallback(
+    (event: React.MouseEvent<HTMLImageElement>) => {
+      const img = imgRef.current;
+      if (!img?.naturalWidth) return;
+      const rect = img.getBoundingClientRect();
+      const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
+      const x = (event.clientX - rect.left - (rect.width - img.naturalWidth * scale) / 2) / scale;
+      const y = (event.clientY - rect.top - (rect.height - img.naturalHeight * scale) / 2) / scale;
+
+      if (mode === "calibrate") {
+        setPoints((p) => (p.length >= 4 ? [[x, y]] : [...p, [x, y]]));
+        return;
+      }
+      setSpan((p) => {
+        const next: Pt[] = p.length >= 2 ? [[x, y]] : [...p, [x, y]];
+        if (next.length === 2) {
+          measure.mutate({ a: next[0] as Pt, b: next[1] as Pt });
+        }
+        return next;
+      });
+    },
+    [mode, measure],
+  );
+
   if (!loaded) {
     return <Empty message="Load a source first — calibration needs a frame to click on." />;
   }
 
-  const addPoint = (event: React.MouseEvent<HTMLImageElement>) => {
-    const img = imgRef.current;
-    if (!img?.naturalWidth) return;
-    const rect = img.getBoundingClientRect();
-    const scale = Math.min(rect.width / img.naturalWidth, rect.height / img.naturalHeight);
-    const x = (event.clientX - rect.left - (rect.width - img.naturalWidth * scale) / 2) / scale;
-    const y = (event.clientY - rect.top - (rect.height - img.naturalHeight * scale) / 2) / scale;
-    setPoints((p) => (p.length >= 4 ? [[x, y]] : [...p, [x, y]]));
-  };
+  const calibrated = Boolean(info.data?.calibrated);
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-auto lg:grid-cols-[1.5fr_1fr]">
       <Panel
-        title="Reference rectangle"
+        title={birdseye ? "Rectified to a plan view" : "Reference rectangle"}
         badge={
-          <span className="num text-[11px] text-muted">{points.length} / 4 points</span>
+          <span className="num text-[11px] text-muted">
+            {birdseye
+              ? "lane lines should be parallel"
+              : mode === "calibrate"
+                ? `${points.length} / 4 points`
+                : `${span.length} / 2 points`}
+          </span>
         }
         actions={
           <>
-            <Button size="sm" variant="ghost" onClick={() => setPoints([])}>
+            {calibrated ? (
+              <Button
+                size="sm"
+                active={birdseye}
+                onClick={() => setBirdseye(!birdseye)}
+                title="Warp the road to a plan view. A wrong homography makes parallel lane lines splay."
+              >
+                Bird's-eye
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setPoints([]);
+                setSpan([]);
+                measure.reset();
+              }}
+            >
               Clear
             </Button>
             <Button
               size="sm"
               variant="primary"
-              disabled={points.length !== 4 || calibrate.isPending}
+              disabled={points.length !== 4 || calibrate.isPending || mode !== "calibrate"}
               onClick={() => calibrate.mutate()}
             >
               Calibrate
@@ -85,25 +139,68 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
         }
         className="min-h-[320px]"
       >
+        {birdseye ? null : (
+          <div className="mb-2 flex gap-1.5">
+            <Button size="sm" active={mode === "calibrate"} onClick={() => setMode("calibrate")}>
+              Click four corners
+            </Button>
+            <Button
+              size="sm"
+              active={mode === "measure"}
+              disabled={!calibrated}
+              onClick={() => setMode("measure")}
+              title={calibrated ? undefined : "Calibrate first — there is nothing to measure in yet."}
+            >
+              Measure a distance
+            </Button>
+          </div>
+        )}
+
         <div className="relative flex h-full min-h-[280px] items-center justify-center overflow-hidden rounded-panel bg-black">
-          <img
-            ref={imgRef}
-            src={frameUrl(0, { boxes: false, lanes: false, counting_lines: false })}
-            alt="Frame for calibration"
-            onClick={addPoint}
-            onLoad={(e) =>
-              setNatural([e.currentTarget.naturalWidth, e.currentTarget.naturalHeight])
-            }
-            className="max-h-full max-w-full cursor-crosshair object-contain"
-          />
-          <Markers points={points} grid={grid.data?.polylines} natural={natural} img={imgRef} />
+          {birdseye ? (
+            <img
+              src={birdseyeUrl(0, 8)}
+              alt="Road rectified to a plan view"
+              className="max-h-full max-w-full object-contain"
+            />
+          ) : (
+            <>
+              <img
+                ref={imgRef}
+                src={frameUrl(0, { boxes: false, lanes: false, counting_lines: false })}
+                alt="Frame for calibration"
+                onClick={addPoint}
+                onLoad={(e) =>
+                  setNatural([e.currentTarget.naturalWidth, e.currentTarget.naturalHeight])
+                }
+                className="max-h-full max-w-full cursor-crosshair object-contain"
+              />
+              <Markers
+                points={mode === "calibrate" ? points : span}
+                span={mode === "measure" ? span : []}
+                grid={grid.data?.polylines}
+                natural={natural}
+                img={imgRef}
+              />
+            </>
+          )}
         </div>
-        <p className="mt-2 text-[11.5px] leading-snug text-muted">
-          Click the four corners of a rectangle you know the dimensions of, on the
-          road surface, in order: near-left, near-right, far-right, far-left. Lane
-          width across, dashed-line pitch along. Nothing above the horizon can be
-          used — a point above it maps to a road position behind the camera.
-        </p>
+
+        {mode === "measure" ? (
+          <MeasureResult
+            result={measure.data}
+            error={measure.error}
+            pending={measure.isPending}
+            points={span.length}
+          />
+        ) : (
+          <p className="mt-2 text-[11.5px] leading-snug text-muted">
+            Click the four corners of a rectangle you know the dimensions of, on the
+            road surface, in order: near-left, near-right, far-right, far-left. Lane
+            width across, dashed-line pitch along. Nothing above the horizon can be
+            used — a point above it maps to a road position behind the camera.
+          </p>
+        )}
       </Panel>
 
       <div className="flex min-h-0 flex-col gap-3">
@@ -117,18 +214,122 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
         </Panel>
 
         <Verdict info={info.data} error={calibrate.error} />
+
+        {calibrated ? <SaveLoad /> : null}
       </div>
     </div>
   );
 }
 
+/* --------------------------------------------------------- measurement -- */
+
+function MeasureResult({
+  result,
+  error,
+  pending,
+  points,
+}: {
+  result?: { distance_m: number | null; note: string };
+  error: unknown;
+  pending: boolean;
+  points: number;
+}) {
+  if (error) {
+    return (
+      <div className="mt-2">
+        <ErrorNote message={String(error)} />
+      </div>
+    );
+  }
+  if (pending) return <p className="mt-2 text-[12px] text-accent">Measuring…</p>;
+  if (points < 2 || !result) {
+    return (
+      <p className="mt-2 text-[11.5px] leading-snug text-muted">
+        Click two points on the road surface to measure the distance between them.
+        This is the only check that catches a calibration which is perfectly
+        self-consistent and wrong by a constant factor — compare the answer against
+        a tape measure, or against a known lane width.
+      </p>
+    );
+  }
+  if (result.distance_m == null) {
+    return (
+      <div className="mt-2 rounded-panel border border-slow/40 bg-slow/10 px-3 py-2 text-[12px] leading-snug text-slow">
+        At least one of those points is above the horizon, so it has no position on
+        the road plane — the ray leaves the plane behind the camera. Click lower.
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 rounded-panel border border-accent bg-accent-dim px-3 py-2">
+      <div className="num text-[22px] font-semibold text-accent">
+        {metres(result.distance_m, 2)}
+        <span className="ml-1 text-[12px] font-normal text-muted">m</span>
+      </div>
+      <p className="mt-1 text-[11.5px] leading-snug text-secondary">{result.note}</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ save/load -- */
+
+function SaveLoad() {
+  const client = useQueryClient();
+  const [key, setKey] = useState("default");
+
+  const save = useMutation({ mutationFn: () => api.saveCalibration(key) });
+  const load = useMutation({
+    mutationFn: () => api.loadCalibration(key),
+    onSuccess: () => void client.invalidateQueries(),
+  });
+
+  return (
+    <Panel title="Reuse this calibration">
+      <p className="mb-3 text-[11.5px] leading-snug text-muted">
+        A calibration belongs to a camera position, not to a clip. Saving it under a
+        name means the same mounting can be re-used without re-clicking, which is
+        also the only way two runs are comparable — a re-clicked calibration is a
+        slightly different instrument.
+      </p>
+      <div className="flex items-end gap-2">
+        <label className="flex-1">
+          <span className="mb-1 block text-[12px] font-medium text-secondary">Name</span>
+          <input
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            className="num h-8 w-full rounded-ctl border border-line bg-raised px-2 text-[13px] text-primary"
+          />
+        </label>
+        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !key.trim()}>
+          Save
+        </Button>
+        <Button size="sm" onClick={() => load.mutate()} disabled={load.isPending || !key.trim()}>
+          Load
+        </Button>
+      </div>
+      {save.isSuccess ? (
+        <p className="num mt-2 text-[11.5px] text-free">saved to {save.data.saved}</p>
+      ) : null}
+      {load.isSuccess ? (
+        <p className="mt-2 text-[11.5px] text-free">loaded — the pipeline is using it now</p>
+      ) : null}
+      {save.isError ? <div className="mt-2"><ErrorNote message={String(save.error)} /></div> : null}
+      {load.isError ? <div className="mt-2"><ErrorNote message={String(load.error)} /></div> : null}
+    </Panel>
+  );
+}
+
+/* -------------------------------------------------------------- markers -- */
+
 function Markers({
   points,
+  span,
   grid,
   natural,
   img,
 }: {
   points: Pt[];
+  span: Pt[];
   grid?: [number, number][][];
   natural: [number, number];
   img: React.RefObject<HTMLImageElement>;
@@ -146,13 +347,11 @@ function Markers({
   if (!element) return null;
   const rect = element.getBoundingClientRect();
   const scale = Math.min(rect.width / natural[0], rect.height / natural[1]);
-  const w = natural[0] * scale;
-  const h = natural[1] * scale;
 
   return (
     <svg
       viewBox={`0 0 ${natural[0]} ${natural[1]}`}
-      style={{ width: w, height: h }}
+      style={{ width: natural[0] * scale, height: natural[1] * scale }}
       className="pointer-events-none absolute"
     >
       {grid?.map((line, i) => (
@@ -165,13 +364,24 @@ function Markers({
           strokeWidth={1.5}
         />
       ))}
-      {points.length === 4 ? (
+      {points.length === 4 && span.length === 0 ? (
         <polygon
           points={points.map((p) => p.join(",")).join(" ")}
           fill="var(--accent)"
           fillOpacity={0.12}
           stroke="var(--accent)"
           strokeWidth={2}
+        />
+      ) : null}
+      {span.length === 2 ? (
+        <line
+          x1={span[0]?.[0]}
+          y1={span[0]?.[1]}
+          x2={span[1]?.[0]}
+          y2={span[1]?.[1]}
+          stroke="var(--accent)"
+          strokeWidth={2.5}
+          strokeDasharray="10 6"
         />
       ) : null}
       {points.map((p, i) => (
@@ -185,6 +395,8 @@ function Markers({
     </svg>
   );
 }
+
+/* --------------------------------------------------------------- fields -- */
 
 function NumberField({
   label,
@@ -273,7 +485,8 @@ function Verdict({ info, error }: { info?: CalibrationInfo; error: unknown }) {
         <div className="mb-2 rounded-panel border border-slow/40 bg-slow/10 px-3 py-2 text-[11.5px] leading-snug text-slow">
           Four points determine a homography exactly, so the reprojection residual
           is structurally zero and proves nothing. The plausibility of the implied
-          camera above, and a tape measure, are the real checks.
+          camera above, the distance tool and the bird's-eye view are the real
+          checks.
         </div>
       ) : (
         <p className="num mb-2 text-[12px] text-muted">

@@ -171,25 +171,32 @@ class ParamRequest(BaseModel):
 @router.post("/api/pipeline/params")
 def set_params(request: ParamRequest) -> dict[str, Any]:
     session = get_session()
-    before = dict(session.pipeline.stage(request.stage_id).params)
     started = time.perf_counter()
+    # The stage lookup is inside the try as well as the configure call: an
+    # unknown stage_id raises KeyError, and reading `before` outside the guard
+    # let that escape as a 500 with a stack trace instead of the 400 that names
+    # the stages the pipeline actually has.
     try:
+        stage = session.pipeline.stage(request.stage_id)
+        before = dict(stage.params)
         session.pipeline.configure(request.stage_id, **request.params)
     except (KeyError, ValueError) as error:
         raise _fail(error) from error
+
     session._reset_analysis()  # noqa: SLF001 - the session owns this state
-    changed = {
-        k: v for k, v in session.pipeline.stage(request.stage_id).params.items()
-        if before.get(k) != v
-    }
+    changed = {k: v for k, v in stage.params.items() if before.get(k) != v}
+    message = (
+        "parameters changed: " + ", ".join(f"{k}={v}" for k, v in changed.items())
+        if changed
+        else "no change"
+    )
     session.note(
         request.stage_id,
-        "parameters changed: "
-        + ", ".join(f"{k}={v}" for k, v in changed.items()) if changed else "no change",
+        message,
         elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
         changed=changed,
     )
-    return {"stage": session.pipeline.stage(request.stage_id).describe()}
+    return {"stage": stage.describe()}
 
 
 @router.post("/api/pipeline/reset")

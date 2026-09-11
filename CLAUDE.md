@@ -216,6 +216,15 @@ From Phases 4 and 5, measurement and the API:
   are reported; quoting only the faster one would describe a pipeline that does
   not measure anything.
 
+- **An unknown `stage_id` escaped as a 500.** `set_params` read the stage's
+  current parameters *before* the `try`, so the `KeyError` that names the nine
+  real stages never reached the handler that turns it into a 400. Anything that
+  can raise belongs inside the guard, not next to it.
+- **`/api/operators` is populated by import side effect.** `@register` runs when
+  the operator module is imported, so code that reaches `REGISTRY` without
+  importing `kerbside.operators` sees an empty registry and no error. The count
+  is pinned at 35 by a test.
+
 ## Performance notes
 
 The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered:
@@ -234,7 +243,7 @@ The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q                        # 239 tests
+.venv/Scripts/python.exe -m pytest -q                        # 273 tests
 .venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
 .venv/Scripts/python.exe -m kerbside.data.make_clips --list  # scenarios
 .venv/Scripts/python.exe -m kerbside.data.make_clips --all   # regenerate clips
@@ -272,7 +281,10 @@ Do not start a phase until the previous gate passes. Commit at each gate.
 5. **Backend API** — done. REST, MJPEG, WebSocket telemetry, stage cache.
 6. **Frontend shell, Console and Calibration** — done.
 7. **Shadow Lab, Motion Lab, Analytics** — done.
-8. **Ablation Lab, report, docs** — done. 239 tests pass; ruff clean; mypy
+8. **Ablation Lab, report, docs** — done. `tests/test_api.py` exercises every
+   endpoint end to end, which is what Phase 5's gate actually asks for; driving
+   the routes by hand was not it, and three of the defects found while wiring
+   the console would have been caught by it. 273 tests pass; ruff clean; mypy
    strict clean over `core/`, `geometry/`, `operators/`.
 
 ## What not to do

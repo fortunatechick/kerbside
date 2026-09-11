@@ -138,6 +138,19 @@ export interface CalibrationInfo {
   suggestions: { name: string; nominal_m: number; range_m: number[]; caution: string }[];
 }
 
+/** One entry in the operator registry: what it is, which syllabus unit it
+ *  belongs to, why it exists, and what it can be driven with. */
+export interface OperatorSpec {
+  operator_id: string;
+  name: string;
+  units: number[];
+  rationale: string;
+  category: string;
+  reference: string;
+  tags: string[];
+  params: ParamSpec[];
+}
+
 export interface AblationRow {
   setting: string;
   count_accuracy: number;
@@ -257,6 +270,14 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  loadCalibration: (key: string) =>
+    request<CalibrationInfo>("/api/calibration/load", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
+
+  operators: () => request<{ operators: OperatorSpec[] }>("/api/operators"),
+
   analytics: () => request<Analytics>("/api/analytics"),
 
   ablations: () =>
@@ -278,6 +299,13 @@ export function streamUrl(layers: Record<string, boolean>, nonce: number): strin
   );
   query.set("t", String(nonce));
   return `/api/stream.mjpg?${query.toString()}`;
+}
+
+/** The road, rectified to a plan view. The single most convincing check that a
+ *  calibration is right: lane lines that are parallel in the world come out
+ *  parallel here, and a wrong homography makes them visibly splay. */
+export function birdseyeUrl(index: number, pxPerM = 8): string {
+  return `/api/calibration/birdseye/${index}.jpg?px_per_m=${pxPerM}`;
 }
 
 export function frameUrl(index: number, layers: Record<string, boolean>): string {

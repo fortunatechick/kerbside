@@ -6,6 +6,7 @@
  * mode do you want to look at" is the actual first question.
  */
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Status } from "../lib/api";
 import { Button, Empty, ErrorNote, Panel, Stat } from "../components/primitives";
@@ -64,6 +65,12 @@ function SourcePicker() {
     onSuccess: () => void client.invalidateQueries(),
   });
 
+  const [videoPath, setVideoPath] = useState("");
+  const loadVideo = useMutation({
+    mutationFn: () => api.loadVideo(videoPath.trim()),
+    onSuccess: () => void client.invalidateQueries(),
+  });
+
   return (
     <div className="h-full overflow-auto">
       <Panel title="Choose a source">
@@ -107,6 +114,41 @@ function SourcePicker() {
         ) : null}
         {load.isError ? <div className="mt-4"><ErrorNote message={String(load.error)} /></div> : null}
       </Panel>
+
+      <div className="mt-3">
+        <Panel title="Or a real clip">
+          <p className="mb-3 max-w-prose text-[13px] leading-relaxed text-secondary">
+            Any video a codec on this machine can decode. Real footage has no ground
+            truth, so the console will show counts, speeds and classes but will not
+            score them — and a synthetic result and a real one are never averaged
+            together anywhere in this system.
+          </p>
+          <div className="flex items-end gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-[12px] font-medium text-secondary">
+                Path to a video file
+              </span>
+              <input
+                value={videoPath}
+                placeholder="D:\footage\junction.mp4"
+                onChange={(e) => setVideoPath(e.target.value)}
+                className="num h-8 w-full rounded-ctl border border-line bg-raised px-2 text-[13px] text-primary placeholder:text-muted"
+              />
+            </label>
+            <Button
+              onClick={() => loadVideo.mutate()}
+              disabled={loadVideo.isPending || !videoPath.trim()}
+            >
+              {loadVideo.isPending ? "Opening…" : "Open"}
+            </Button>
+          </div>
+          {loadVideo.isError ? (
+            <div className="mt-3">
+              <ErrorNote message={String(loadVideo.error)} />
+            </div>
+          ) : null}
+        </Panel>
+      </div>
 
       <div className="mt-3">
         <Empty

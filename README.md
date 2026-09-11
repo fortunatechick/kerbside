@@ -13,7 +13,7 @@ decades before deep learning, and what many still do.
 > All nine stages, the REST/MJPEG/WebSocket API, the operations console, the
 > nine ablation studies and the self-contained HTML report are built and
 > running; `python run_kerbside.py --scenario free_flow --open` starts the whole
-> thing on one port. 239 tests pass, `ruff` is clean and `mypy --strict` is clean
+> thing on one port. 273 tests pass, `ruff` is clean and `mypy --strict` is clean
 > over `core/`, `geometry/` and `operators/`.
 >
 > **Phase 3's accuracy gate was not met and has not been rewritten to fit.**
@@ -95,6 +95,11 @@ package installed, `python -m kerbside.serve` is equivalent.
 If the frontend has not been built, the root route says so and explains how,
 rather than returning a 404 that looks like a broken install. The REST API and
 its OpenAPI documentation at `/docs` are available either way.
+
+The console has eight views: the live **Console**, **Calibration**, the
+**Pipeline** inspector, an **Operators** reference covering all 35 registered
+operators by syllabus unit, the **Shadow** and **Motion** labs, **Analytics**,
+the **Ablation** lab and the **Report**.
 
 `docs/kerbside-interface.html` is a single self-contained page showing what the
 console renders, built from a real run. `docs/kerbside-presentation.html` is the

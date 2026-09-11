@@ -117,9 +117,11 @@ ABLATIONS: dict[str, AblationPreset] = {
         key="connectivity",
         label="Connectivity: 4 vs 8 vs m",
         question=(
-            "4-connectivity fragments a vehicle whose mask narrows to a diagonal. "
-            "8 and m are provably identical in their components - so what "
-            "actually differs is 4 against the other two."
+            "How much does 4-connectivity fragment a vehicle whose mask narrows "
+            "to a diagonal? 8 and m are provably identical in the components "
+            "they induce, so the only difference this study can show is 4 "
+            "against the other two - and reporting a count difference for m "
+            "would be reporting something that cannot happen."
         ),
         stage_id="s6_blobs",
         param="connectivity",
