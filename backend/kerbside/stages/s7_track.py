@@ -33,7 +33,7 @@ for one is a different gate under another.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -378,11 +378,16 @@ class TrackStage(Stage):
         track.footprint_m = blob.footprint_m
         if blob.lane_id is not None:
             track.lane_id = blob.lane_id
-        if track.state is TrackState.TENTATIVE and track.hits >= int(
-            self.param("confirm_hits")
-        ):
-            track.state = TrackState.CONFIRMED
-        elif track.state is TrackState.COASTING:
+        # A track becomes confirmed either by accumulating enough hits, or by
+        # being re-associated after coasting - a track that survived an
+        # occlusion has already proved itself. Written out rather than left to
+        # `and`/`or` precedence, because this is a state machine and a reader
+        # should not have to recall the binding order to check it.
+        confirmed = (
+            track.state is TrackState.TENTATIVE
+            and track.hits >= int(self.param("confirm_hits"))
+        ) or track.state is TrackState.COASTING
+        if confirmed:
             track.state = TrackState.CONFIRMED
 
         if previous is not None and dt_s > 0:

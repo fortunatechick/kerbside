@@ -245,7 +245,9 @@ def frame_stages(index: int, include_images: bool = True) -> dict[str, Any]:
             "elapsed_ms": round(result.elapsed_ms, 3),
             "metrics": {k: float(v) for k, v in result.metrics.items()},
             "extras": {
-                k: v for k, v in result.extras.items() if isinstance(v, (str, int, float, dict, list, bool))
+                k: v
+                for k, v in result.extras.items()
+                if isinstance(v, (str, int, float, dict, list, bool))
             },
             "modified": list(stage.differs_from_default()),
         }
@@ -283,12 +285,18 @@ def probe(index: int, x: int, y: int) -> dict[str, Any]:
     threshold = ctx.threshold_level
 
     world = None
-    if session.calibration is not None and session.calibration.is_valid:
-        if session.calibration.is_on_road_plane(float(x), float(y)):
-            from kerbside.geometry.homography import apply_h_single
+    # A point above the horizon has no road-plane position: the ray leaves the
+    # plane behind the camera. Guarding here rather than in the projection is
+    # what stops the probe reporting a confident nonsense coordinate.
+    if (
+        session.calibration is not None
+        and session.calibration.is_valid
+        and session.calibration.is_on_road_plane(float(x), float(y))
+    ):
+        from kerbside.geometry.homography import apply_h_single
 
-            wx, wy = apply_h_single(session.calibration.h_img_to_world, float(x), float(y))
-            world = [round(wx, 3), round(wy, 3)]
+        wx, wy = apply_h_single(session.calibration.h_img_to_world, float(x), float(y))
+        world = [round(wx, 3), round(wy, 3)]
 
     return {
         "x": x,
@@ -314,7 +322,9 @@ def probe(index: int, x: int, y: int) -> dict[str, Any]:
 # ==========================================================================
 
 
-def _trail_map(session: Session, upto: int, length: int = 24) -> dict[int, list[tuple[float, float]]]:
+def _trail_map(
+    session: Session, upto: int, length: int = 24
+) -> dict[int, list[tuple[float, float]]]:
     trails: dict[int, list[tuple[float, float]]] = {}
     for index in range(max(0, upto - length), upto + 1):
         for snapshot in session.telemetry(index).get("tracks", []):

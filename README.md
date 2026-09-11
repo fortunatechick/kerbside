@@ -9,12 +9,18 @@ No detector. No tracker-by-detection. No learned model anywhere in the pipeline.
 This is what deployed traffic counting and speed measurement systems did for two
 decades before deep learning, and what many still do.
 
-> **Build status: Phases 1 and 2 complete; Phase 3 built but below target.**
-> The renderer, the geometry and ground-truth contract, and the operator library
-> are finished and tested. Stages S1–S6 and the evaluation metrics are built and
-> working, but do **not** meet the Phase 3 accuracy or throughput targets — the
-> measured figures and the reason are in [Detection accuracy](#detection-accuracy-phase-3-target-not-met)
-> below. The API and the operations console are not built.
+> **Build status: complete, with Phase 3 below target and said so.**
+> All nine stages, the REST/MJPEG/WebSocket API, the operations console, the
+> nine ablation studies and the self-contained HTML report are built and
+> running; `python run_kerbside.py --scenario free_flow --open` starts the whole
+> thing on one port. 239 tests pass, `ruff` is clean and `mypy --strict` is clean
+> over `core/`, `geometry/` and `operators/`.
+>
+> **Phase 3's accuracy gate was not met and has not been rewritten to fit.**
+> Frame-count agreement is 25% against a 98% target and throughput is below the
+> 15 fps target — the measured figures and the diagnosis are in
+> [Detection accuracy](#detection-accuracy-phase-3-target-not-met) below.
+> The end-to-end measurement results are in [Measurement accuracy](#measurement-accuracy-phase-4).
 >
 > Everything claimed here is backed by a test in `tests/`. Nothing is claimed for
 > a stage that does not exist, and nothing that falls short is reported as
@@ -67,6 +73,33 @@ Run the tests:
 Clips are build output and are not committed. They regenerate byte-identically
 from their seed, so every number in this document is reproducible from a clean
 checkout.
+
+### The console
+
+Build the interface once, then run the whole application from one command:
+
+```bash
+cd frontend && npm install && npm run build
+```
+
+```bash
+.venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
+```
+
+FastAPI serves the REST API, the MJPEG stream, the telemetry WebSocket and the
+built frontend from the same origin, so there is no CORS to configure and no
+second server to start. `run_kerbside.py` puts `backend/` on the path, so the
+console runs from a clean checkout without installing the package; with the
+package installed, `python -m kerbside.serve` is equivalent.
+
+If the frontend has not been built, the root route says so and explains how,
+rather than returning a 404 that looks like a broken install. The REST API and
+its OpenAPI documentation at `/docs` are available either way.
+
+`docs/kerbside-interface.html` is a single self-contained page showing what the
+console renders, built from a real run. `docs/kerbside-presentation.html` is the
+project presentation and `docs/kerbside-implementation-plan.html` the technical
+plan; all three work offline on any browser.
 
 ## Why a synthetic renderer comes first
 
@@ -296,6 +329,68 @@ with no shadows at all leaves the frame-agreement figure essentially unchanged �
 which is how fragmentation was identified as the real constraint rather than
 assumed away.
 
+### Measurement accuracy (Phase 4)
+
+Free-flow clip, 12 s, scored against exact per-frame ground truth.
+
+| Measure | Result |
+|---|---|
+| Count accuracy | **90.9%** (12 counted, 11 expected) |
+| Lane assignment | 81% correct |
+| Size class | 52% correct |
+| Speed, Route A — ground point | MAE **19.5 km/h**, bias −14.35 |
+| Speed, Route B — block matching | MAE **9.4 km/h**, bias −3.88 |
+
+Both speed routes are computed for every vehicle, because the comparison is the
+finding rather than a diagnostic. They are built to fail in *independent* ways:
+
+- **Route A** differences the bounding box's ground point through the road
+  homography. That point is the only part of the silhouette genuinely on the
+  calibrated plane. It carries a known bias — it maps to the vehicle's near
+  extremity, half a length short — but a constant bias cancels under
+  differencing, which is why an unbiased speed can be built on a biased
+  position.
+- **Route B** tiles the vehicle box, discards blocks with too little texture to
+  say anything, matches the rest against the previous frame, takes the *median*
+  displacement, refines it to sub-pixel by phase correlation, and maps it
+  through the homography of the plane *at the height the blocks sit at*. Using
+  the road-plane homography instead attributes body-panel motion to the ground
+  and leaves an error that scales with that height, so it never averages away.
+
+The blob centroid is the obvious third option and is rejected on geometry: a
+centroid sits in the middle of the visible silhouette, which is not on the road
+plane at all, and its error grows with distance and with vehicle height. It is
+computed, and used for association only — never for speed.
+
+**Route B wins by 2.1×, and the reason is consistent with Phase 3.** Route A's
+position is defined by the *edge of the mask*, and that mask under-covers the
+vehicle rear. A short mask shortens the measured displacement, which under-reads
+the speed; the −14.35 km/h bias is that, measured. Route B never touches the
+mask boundary. Two methods built to fail differently pointing at the same defect
+is the strongest evidence in the project that segmentation, not measurement, is
+the binding constraint.
+
+Route B's residual is structural rather than a tuning problem: a sweep over the
+smoothing window and gain moved its MAE between 9.4 and 9.6 km/h — essentially
+flat. The remaining −3.9 km/h is not reachable from S8; it has to be fixed at
+S4–S6, where the mask is made. The flat sweep is the result. Tuning until a
+number looked better would have hidden it.
+
+Class accuracy at 52% has the same cause. Footprint in metres is a sound basis
+for classification and a fragmenting mask halves the footprint, so the class is
+wrong for exactly the vehicles the mask splits.
+
+### Throughput
+
+| Pipeline | Rate at 720p | Target |
+|---|---|---|
+| Detection only, S1–S6 | **4.0 fps** | ≥ 15 fps |
+| Full pipeline, S1–S9 with block matching | **1.1 fps** | ≥ 15 fps |
+
+S8 dominates the full pipeline at roughly 570–640 ms per frame, because block
+matching searches every textured block in every vehicle box. Both figures are
+below target and both are reported, rather than quoting the faster one.
+
 ### Findings worth stating plainly
 
 **A greyscale background subtraction cannot see a red vehicle.** BT.601 weights
@@ -366,23 +461,41 @@ backend/kerbside/
     s5_shadow.py         HSV shadow suppression
     s6_blobs.py          components, perspective size filter, splitting
     pipeline.py          orchestration, per-stage timings
+    s7_track.py          world-frame prediction, association, coasting
+    s8_speed.py          two independent speed routes, reported side by side
+    s9_classify.py       size class from footprint in metres, colour naming
   eval/
     metrics.py           detection and counting metrics against ground truth
+    analytics.py         flow, headway, percentiles, the fundamental diagram
+    ablation.py          nine studies, each answering a stated question
+    report.py            one self-contained HTML file, figures inlined
+  api/
+    routes.py            REST, MJPEG stream, telemetry WebSocket
+    session.py           in-memory session, analysis, bounded frame retention
+    overlay.py           the annotated frame; layers toggled independently
+  serve.py               FastAPI app; serves the built frontend on one origin
   data/
     renderer.py          synthetic scene renderer with exact ground truth
     scenarios.py         presets, each targeting a specific failure mode
     degrade.py           resolution, JPEG, blur, noise, low light
     make_clips.py        CLI: render clips and ground truth to disk
+frontend/src/
+  lib/                   typed API client, telemetry socket, UI state
+  components/            primitives, viewport, parameter rail, inspector
+  views/                 console, calibration, pipeline, shadow, motion,
+                         analytics, ablation, report
+docs/                    presentation, implementation plan, interface tour
+run_kerbside.py          start the console without installing the package
 tests/                   pytest; every claim above is asserted here
 ```
 
-Not yet built: `api/` and the frontend.
-
 ## Syllabus mapping
 
-The full mapping table lands with the pipeline. What Phase 1 establishes:
+Every one of the 35 registered operators records its syllabus unit, and the
+console surfaces that unit next to the control that sets it — so the mapping is
+a property of the running system rather than a table written afterwards.
 
-| Unit | Where it appears so far |
+| Unit | Where it carries weight |
 |---|---|
 | 1 | Image formation and coordinates; the perspective scale tables traps 3 and 4 depend on; resolution and grey-level degradation; city-block vs Euclidean gradient magnitude |
 | 2 | Point processing and neighbourhood filtering, including convolution written from its definition; frequency-domain filtering |

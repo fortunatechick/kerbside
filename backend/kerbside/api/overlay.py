@@ -13,7 +13,7 @@ visible for the overlay to be evidence of anything.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import cv2
 import numpy as np

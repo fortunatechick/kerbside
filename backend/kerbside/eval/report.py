@@ -10,12 +10,16 @@ without the settings that produced it cannot be reproduced or argued with -
 which is the whole purpose of the document.
 """
 
+# ruff: noqa: E501 - the long lines here are CSS and HTML inside f-strings.
+# Wrapping them to satisfy a Python line limit would insert line breaks into
+# the generated document.
+
 from __future__ import annotations
 
 import base64
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -96,7 +100,7 @@ def build_report(session: Session) -> dict[str, Any]:
         }
 
     return {
-        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "source": session.state.to_dict(),
         "analytics": analytics,
         "stages": stages,

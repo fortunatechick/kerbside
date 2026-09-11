@@ -35,8 +35,14 @@ backend/kerbside/
   stages/     s1_ingest .. s9_classify, the pipeline proper
   data/       synthetic renderer with exact ground truth, scenarios, degradation
   eval/       metrics, ablation, report
-  api/        FastAPI routes; all I/O lives here
+  api/        FastAPI routes, session, overlay; all I/O lives here
+  serve.py    the app; serves the built frontend from the same origin
 frontend/src/ React + TypeScript + Vite, served as static assets by FastAPI
+  lib/        typed API client, telemetry socket, UI state
+  components/ primitives, viewport, parameter rail, inspector
+  views/      console, calibration, pipeline, shadow, motion, analytics,
+              ablation, report
+docs/         presentation, implementation plan, interface tour (standalone HTML)
 tests/        pytest
 data/clips, data/gt, data/calib   build output, not committed
 ```
@@ -169,6 +175,47 @@ its actual defects:
   as two fragments has been found once. Crediting it twice let recall exceed
   1.0, which is how the error surfaced.
 
+From Phases 4 and 5, measurement and the API:
+
+- **The two speed routes are the ground point and block matching, not the
+  centroid.** The field names say so: `speed_kmph_track` and
+  `speed_kmph_blockmatch`. They were once named for a centroid the stage no
+  longer uses, which is a naming trap of exactly the kind this file exists to
+  record — a reader would have believed Route A was the centroid route the whole
+  design argues *against*. The blob centroid is still computed, and is used for
+  association only.
+- **Block matching beats the ground point by 2.1×, and the reason is the mask.**
+  Route A's position is the edge of the mask, and that mask under-covers the
+  vehicle rear; a short mask shortens the displacement and under-reads the
+  speed, which is the −14.35 km/h bias measured. Route B never touches the mask
+  boundary. Two routes built to fail independently agreeing on one defect is
+  the strongest evidence in the project that segmentation is the constraint.
+- **Route B must use the homography of the plane at the blocks' height.** Body
+  texture sits about a metre above the road; mapping its displacement through
+  the *road* homography attributes it to the wrong plane and leaves an error
+  that scales with that height, so it does not average away.
+- **Route B's residual is not tunable.** A sweep over the smoothing window and
+  gain moved its MAE between 9.4 and 9.6 km/h. Fixing it means fixing S4–S6.
+- **A FrameContext holds ~35 MB of float32 intermediates at 720p.** Retaining
+  one per frame cost gigabytes over a clip and died partway through with an
+  `ArrayMemoryError`; because the failure left `_analysis_done` False, the next
+  request restarted the analysis and the console never recovered. Contexts now
+  release their intermediates beyond `Session.RETAINED_CONTEXTS` frames, and
+  `Session.context(intermediates=True)` replays the clip when the stage
+  inspector needs detail that has gone. `OverlayOptions.needs_intermediates`
+  declares which layers care, so an ordinary scrub never triggers a replay and
+  the MJPEG stream never does.
+- **A replay rewinds the tracker's running totals**, so the totals are frozen
+  when an analysis completes and `summary()` reports the frozen ones.
+- **FastAPI cannot build a response model from a union of `Response`
+  subclasses.** The SPA fallback route annotated `FileResponse | HTMLResponse`
+  and raised at import time — but only once `frontend/dist` existed, which is
+  why an earlier API smoke test passed. It carries `response_model=None`.
+- **S8 dominates the frame budget** at roughly 570–640 ms, so the full S1–S9
+  pipeline runs at 1.1 fps against the 4.0 fps of detection alone. Both numbers
+  are reported; quoting only the faster one would describe a pipeline that does
+  not measure anything.
+
 ## Performance notes
 
 The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered:
@@ -187,12 +234,19 @@ The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q                        # test suite
+.venv/Scripts/python.exe -m pytest -q                        # 239 tests
+.venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
 .venv/Scripts/python.exe -m kerbside.data.make_clips --list  # scenarios
 .venv/Scripts/python.exe -m kerbside.data.make_clips --all   # regenerate clips
 .venv/Scripts/python.exe -m ruff check backend tests
 .venv/Scripts/python.exe -m mypy backend/kerbside/core backend/kerbside/geometry backend/kerbside/operators --strict
+cd frontend && npm run build                                 # then reload the console
 ```
+
+`run_kerbside.py` puts `backend/` on `sys.path` and hands over to
+`kerbside.serve`, so the console starts without installing the package — which
+matters on a machine where the interpreter's `Scripts/` directory is not
+writable and `pip install -e .` fails partway.
 
 A project virtualenv lives in `.venv` because the system Python has a
 NumPy/SciPy version mismatch. Use `.venv/Scripts/python.exe` on Windows.
@@ -204,18 +258,22 @@ Do not start a phase until the previous gate passes. Commit at each gate.
 1. **Renderer, geometry, ground truth** — done.
 2. **Operator library** (`operators/`) with known-answer tests — done.
 3. **Stages S1–S6 and `eval/metrics.py`** — built and tested, **gate not met**.
-   Frame-count agreement is 26% against a 98% target and throughput is 4.0 fps
+   Frame-count agreement is 25% against a 98% target and throughput is 4.0 fps
    against 15. The limiting failure is fragmentation (144 split events against
-   38 merges): a vehicle reported as two blobs fails a count comparison just as
-   surely as a missed one. Enlarging the closing element trades fragmentation
-   for vehicle-to-vehicle merging rather than fixing either, so the next step is
-   to separate the two by *shape* — a fragment and its sibling stack vertically
-   within one plausible silhouette, whereas two vehicles do not.
-4. Stages S7–S9: tracking, counting, both speed routes, classification.
-5. Backend API: REST, MJPEG, WebSocket telemetry, stage cache.
-6. Frontend shell, Console and Calibration views.
-7. Shadow Lab, Motion Lab, Analytics.
-8. Ablation Lab, report, docs, polish.
+   38 merges, halved to 87 by the geometric merge): a vehicle reported as two
+   blobs fails a count comparison just as surely as a missed one. Enlarging the
+   closing element trades fragmentation for vehicle-to-vehicle merging rather
+   than fixing either, which is why S6 separates the two by *shape* — a fragment
+   and its sibling stack vertically within one plausible silhouette, whereas two
+   vehicles do not. **The gate stays recorded as failed.** It was set before any
+   code was written; lowering it afterwards would make it meaningless.
+4. **Stages S7–S9** — done. Count 90.9%, lane 81%, class 52%; Route A (ground
+   point) 19.5 km/h MAE, Route B (block matching) 9.4. See below.
+5. **Backend API** — done. REST, MJPEG, WebSocket telemetry, stage cache.
+6. **Frontend shell, Console and Calibration** — done.
+7. **Shadow Lab, Motion Lab, Analytics** — done.
+8. **Ablation Lab, report, docs** — done. 239 tests pass; ruff clean; mypy
+   strict clean over `core/`, `geometry/`, `operators/`.
 
 ## What not to do
 

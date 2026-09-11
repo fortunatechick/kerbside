@@ -27,7 +27,7 @@ import numpy as np
 from kerbside.core.cache import StageCache, cache_key
 from kerbside.core.types import Calibration, GroundTruth, GTFrame, UInt8Array
 from kerbside.data.renderer import TrafficRenderer
-from kerbside.data.scenarios import build_scene, scenario_info, scenario_names
+from kerbside.data.scenarios import build_scene, scenario_names
 from kerbside.stages.base import FrameContext, StageError
 from kerbside.stages.pipeline import FrameOutput, Pipeline
 from kerbside.stages.s1_ingest import VideoInfo, VideoSource
@@ -349,10 +349,13 @@ class Session:
                     context.release_intermediates()
             if context is None:
                 raise StageError(f"frame {index} is outside this clip")
+            elapsed_ms = (
+                self._telemetry[index]["frame_ms"] if index < len(self._telemetry) else 0.0
+            )
             self._outputs[index] = FrameOutput(
                 frame_index=index,
                 time_s=context.time_s,
-                elapsed_ms=self._telemetry[index]["frame_ms"] if index < len(self._telemetry) else 0.0,
+                elapsed_ms=elapsed_ms,
                 context=context,
             )
             self._note("replay", f"re-ran frames 0-{index} to recover stage detail")
