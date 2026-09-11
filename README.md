@@ -13,7 +13,7 @@ decades before deep learning, and what many still do.
 > All nine stages, the REST/MJPEG/WebSocket API, the operations console, the
 > nine ablation studies and the self-contained HTML report are built and
 > running; `python run_kerbside.py --scenario free_flow --open` starts the whole
-> thing on one port. 279 tests pass, `ruff` is clean and `mypy --strict` is clean
+> thing on one port. 280 tests pass, `ruff` is clean and `mypy --strict` is clean
 > over `core/`, `geometry/` and `operators/`.
 >
 > **Three of the eight gates were not met, and none has been rewritten to fit.**
@@ -24,9 +24,9 @@ decades before deep learning, and what many still do.
 > | 3 Detection | blob count matches truth in ≥ 98% of frames | **not met — 25%** |
 > | 4 Measurement | counting ≥ 99%, speed MAE ≤ 2 km/h, lane ≥ 99% | **not met — 90.9% / 9.4 / 81%** |
 > | 5 API | annotated stream ≥ 15 fps at 720p | **not met — 1.1 fps** |
-> | 6 Console | calibrate through the UI to within 2% of the known homography | built, not yet measured |
+> | 6 Console | calibrate through the UI to within 2% of the known homography | **met — 0.54% worst span** |
 >
-> Phases 1, 2, 7 and 8 met theirs. The measured figures and the diagnosis are in
+> Phases 1, 2, 6, 7 and 8 met theirs. The measured figures and the diagnosis are in
 > [Detection accuracy](#detection-accuracy-phase-3-target-not-met) and
 > [Measurement accuracy](#measurement-accuracy-phase-4) below. The Phase 3 and
 > Phase 4 shortfalls are the same defect seen one stage apart; the Phase 5 one is
@@ -195,6 +195,36 @@ All figures below come from `tests/`, on synthetic data with exact ground truth.
 | Homography from four **exact** clicks | < 1e-9 relative — criterion met |
 | Homography from four **half-pixel** clicks, 18–60 m | median and 95th percentile both < 2% — criterion met |
 | Homography from four **whole-pixel** clicks, 18–60 m | ~1.2% median, tail past 2% |
+| Calibrating **through the console API**, half-pixel clicks at 720p | 0.14% median span error, 0.54% worst — Phase 6 criterion met |
+| Same, whole-pixel clicks | 0.27% median, 1.08% worst |
+| Same, half-pixel clicks on a 320×180 frame | 2.05% — the criterion is resolution-dependent, because click error is what bounds it |
+
+### Which background model, measured
+
+The background study is the one place a hand-written model is scored against a
+standard implementation. Free-flow clip, 8 s, 18–80 m working range:
+
+| Model | Recall | Precision | Frame agreement | Count accuracy | fps |
+|---|---|---|---|---|---|
+| Running average (default) | 0.830 | 0.824 | 0.250 | 0.778 | 1.35 |
+| Temporal median | 0.772 | 0.908 | **0.367** | **0.889** | 0.77 |
+| Three-frame difference | 0.157 | 1.000 | 0.017 | 0.222 | 3.62 |
+| First-frame reference | 0.774 | 0.760 | 0.222 | 1.000 | 1.39 |
+| MOG2 (labelled baseline) | **0.951** | **0.934** | 0.294 | 0.444 | 1.22 |
+
+Two things here are worth stating plainly. **MOG2 has the best recall and
+precision and is not the best model for this job**: it over-counts badly, 14
+vehicles against 9 expected, because its per-pixel mixture fragments a vehicle
+more readily than a median over time does. Recall and precision are per-vehicle
+measures and the gate is a count, so the model that wins on the first two loses
+on the one that was set in advance.
+
+And **the temporal median beats the default on both stated criteria** — frame
+agreement 0.367 against 0.250, count accuracy 0.889 against 0.778 — at roughly
+half the throughput and slightly lower recall. That is a real result on one
+scenario and not yet a reason to change a default; changing it on one 8-second
+clip would be fitting the default to the clip. It is recorded here as the study
+output it is.
 
 ### The constraints are tested, not just stated
 

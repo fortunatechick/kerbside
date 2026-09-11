@@ -818,9 +818,9 @@ image  (u, v) in pixels
   <div class="eyebrow">11<span class="sep"></span>Method</div>
   <h2>Eight phases, each with a gate set in advance</h2>
   <p class="lede">
-    Every gate below was written before any code existed. Four were met, three
-    were not, and one is built but has not been measured against its own
-    criterion. <strong>None of them has been rewritten to fit the result.</strong>
+    Every gate below was written before any code existed. Five were met and
+    three were not. <strong>None of them has been rewritten to fit the
+    result.</strong>
   </p>
   <div class="scroll">
     <table>
@@ -843,13 +843,13 @@ image  (u, v) in pixels
             <td class="n"><span class="chip bad">not met &mdash; 1.1 fps</span></td></tr>
         <tr><td><strong>6</strong> Shell, Console, Calibration</td>
             <td>Calibrate through the UI to within 2% of the known homography; the metre grid looks square</td>
-            <td class="n"><span class="chip warn">built, not measured</span></td></tr>
+            <td class="n"><span class="chip ok">met &mdash; 0.14% / 0.54% worst</span></td></tr>
         <tr><td><strong>7</strong> Shadow, Motion, Analytics</td>
             <td>Exhaustive search under 1&nbsp;px vector error at &ge;&nbsp;20&times; the cost of 2-D log; the shadow case list finds real merge-split events</td>
             <td class="n"><span class="chip ok">met &mdash; 0.32&nbsp;px at 32&ndash;36&times;</span></td></tr>
         <tr><td><strong>8</strong> Hardening</td>
             <td>Suite green, mypy strict, ruff clean</td>
-            <td class="n"><span class="chip ok">met &mdash; 279 tests</span></td></tr>
+            <td class="n"><span class="chip ok">met &mdash; 280 tests</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -887,7 +887,7 @@ image  (u, v) in pixels
     <div class="stat"><div class="k">GT contract</div><div class="v ok">&lt;10⁻⁶<span class="u">px</span></div><div class="n">gate was 1 px</div></div>
     <div class="stat"><div class="k">DLT vs closed form</div><div class="v ok">&lt;10⁻⁹</div><div class="n">relative</div></div>
     <div class="stat"><div class="k">Distance, 18–60 m</div><div class="v ok">&lt;2<span class="u">%</span></div><div class="n">sub-pixel clicks</div></div>
-    <div class="stat"><div class="k">Operator coverage</div><div class="v acc">84<span class="u">%</span></div><div class="n">tests on operators/</div></div>
+    <div class="stat"><div class="k">Calibrate via the UI</div><div class="v ok">0.54<span class="u">%</span></div><div class="n">worst span, gate 2%</div></div>
   </div>
   <div class="scroll">
     <table>
@@ -900,6 +900,10 @@ image  (u, v) in pixels
         <tr><td>Energy compaction at 4 of 64 coefficients</td><td class="n">DCT 0.996 &gt; Hadamard 0.994 &gt; DFT 0.991</td></tr>
         <tr><td>Block matching, exhaustive, on real content</td><td class="n">0.32 px MAE · 96% exact</td></tr>
         <tr><td>Fast searches vs exhaustive — comparison count</td><td class="n">36× / 32× fewer</td></tr>
+        <tr><td>Test coverage of <code>operators/</code></td><td class="n">84%</td></tr>
+        <tr><td>Calibrating through the console, half-pixel clicks at 720p</td><td class="n">0.14% median, 0.54% worst</td></tr>
+        <tr><td>Same, whole-pixel clicks</td><td class="n">0.27% median, 1.08% worst</td></tr>
+        <tr><td>Same, half-pixel clicks on a 320×180 frame</td><td class="n">2.05% — the gate is resolution-dependent</td></tr>
       </tbody>
     </table>
   </div>

@@ -233,6 +233,18 @@ From Phases 4 and 5, measurement and the API:
   importing `kerbside.operators` sees an empty registry and no error. The count
   is pinned at 35 by a test.
 
+- **MOG2 wins on recall and precision and loses on the gate.** In the background
+  study it scores 0.951 / 0.934 per vehicle against the temporal median's
+  0.772 / 0.908, and then counts 14 vehicles where 9 exist. Its per-pixel
+  mixture fragments a vehicle more readily than a median over time, and the
+  gate is a count. Do not read a per-vehicle metric as if it were the gate.
+- **The temporal median beats the running-average default** on frame agreement
+  (0.367 vs 0.250) and count accuracy (0.889 vs 0.778), at half the throughput.
+  Measured on one 8-second free-flow clip, which is why the default has not
+  moved: changing it on one clip would be fitting the default to the clip. A
+  2.5-second clip put the same figure at 0.809, which is the reminder that a
+  short clip is a different experiment and not a cheap version of a long one.
+
 ## Performance notes
 
 The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered:
@@ -251,7 +263,7 @@ The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q                        # 279 tests
+.venv/Scripts/python.exe -m pytest -q                        # 280 tests
 .venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
 .venv/Scripts/python.exe -m kerbside.data.make_clips --list  # scenarios
 .venv/Scripts/python.exe -m kerbside.data.make_clips --all   # regenerate clips
@@ -299,16 +311,20 @@ measured, the status is "not measured" and never "passed".
    telemetry, stage cache, 34 end-to-end tests. The gate asked for an annotated
    stream at ≥ 15 fps at 720p; the full pipeline runs at 1.1 fps because S8
    block matching costs ~600 ms a frame.
-6. **Frontend shell, Console and Calibration** — built. Its gate (calibrate
-   through the UI to within 2% of the known homography, metre grid square) has
-   **not been measured**; say so rather than implying it passed.
+6. **Frontend shell, Console and Calibration** — built, **gate met**.
+   Calibrating through `/api/calibration` with half-pixel clicks on a 720p frame
+   lands at 0.14% median span error and 0.54% worst, against a 2% criterion;
+   whole-pixel clicks give 0.27% / 1.08%. On a 320x180 frame the same half-pixel
+   jitter gives 2.05% and misses — **the criterion is resolution-dependent**,
+   because click error and not the estimator is what bounds it. Measure this at
+   the resolution the user actually clicks on.
 7. **Shadow Lab, Motion Lab, Analytics** — done, gate met on the motion half:
    exhaustive search at 0.32 px vector error, 32–36× the cost of the fast
    searches against a ≥ 20× criterion.
 8. **Ablation Lab, report, docs** — done. `tests/test_api.py` exercises every
    endpoint end to end, which is what Phase 5's gate actually asks for; driving
    the routes by hand was not it, and three of the defects found while wiring
-   the console would have been caught by it. 279 tests pass; ruff clean; mypy
+   the console would have been caught by it. 280 tests pass; ruff clean; mypy
    strict clean over `core/`, `geometry/`, `operators/`.
 
 ## What not to do

@@ -426,3 +426,86 @@ def test_the_openapi_schema_builds(client):
     schema = client.get("/openapi.json").json()
     assert "/api/status" in schema["paths"]
     assert "/api/analytics" in schema["paths"]
+
+
+# --------------------------------------------------------------------------
+# Phase 6's gate, measured through the API the console actually uses
+# --------------------------------------------------------------------------
+
+
+def test_calibrating_through_the_api_lands_within_two_percent(client):
+    """Phase 6's gate: calibrate through the UI to within 2% of the truth.
+
+    Phase 1 established that the *estimator* recovers the rendering homography
+    essentially exactly, and that click precision rather than the estimator is
+    what bounds the answer. This is the same question asked of the path a user
+    actually takes: project four known road-plane corners to pixels, perturb
+    them by half a pixel the way a careful click would, POST them to
+    ``/api/calibration``, and then measure distances back out through
+    ``/api/calibration/measure``.
+
+    Half a pixel is the right perturbation. Exact clicks would measure the
+    estimator, which Phase 1 already did; whole-pixel clicks are known to have a
+    tail past 2% and would be measuring the mouse.
+    """
+    import numpy as np
+
+    from kerbside.api.session import get_session
+    from kerbside.geometry.homography import apply_h_single
+
+    # At 720p, because that is the frame a user clicks on and click error is
+    # what bounds this answer. Half a pixel on the module's 320x180 fixture
+    # would be two pixels here, which measures a shakier hand than the gate
+    # describes. This test runs last in the file for that reason: it replaces
+    # the session's source.
+    assert client.post(
+        "/api/source/scenario",
+        json={**SCENARIO, "duration_s": 0.4, "width_px": 1280, "height_px": 720},
+    ).status_code == 200
+
+    session = get_session()
+    truth = session.calibration
+    assert truth is not None, "the synthetic scenario should arrive calibrated"
+
+    def to_px(x_m: float, y_m: float) -> tuple[float, float]:
+        return apply_h_single(truth.h_world_to_img, x_m, y_m)
+
+    # A large quadrilateral, because a small one amplifies click error - which is
+    # the advice the calibration view gives the user.
+    corners_m = [(-3.5, 22.0), (3.5, 22.0), (3.5, 46.0), (-3.5, 46.0)]
+    rng = np.random.default_rng(20240517)
+    clicked = [
+        [c + float(rng.uniform(-0.5, 0.5)) for c in to_px(x, y)] for x, y in corners_m
+    ]
+
+    response = client.post(
+        "/api/calibration",
+        json={
+            "points_px": clicked,
+            "rect_width_m": 7.0,
+            "rect_length_m": 24.0,
+            "origin_x_m": -3.5,
+            "origin_y_m": 22.0,
+            "lane_count": 4,
+            "lane_width_m": 3.5,
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    # Now measure back out, over the working range the pipeline actually uses.
+    errors: list[float] = []
+    for y_start, y_end in [(20.0, 30.0), (25.0, 45.0), (30.0, 60.0), (22.0, 58.0)]:
+        a = to_px(0.0, y_start)
+        b = to_px(0.0, y_end)
+        body = client.post(
+            "/api/calibration/measure", json={"a_px": list(a), "b_px": list(b)}
+        ).json()
+        assert body["distance_m"] is not None, (y_start, y_end)
+        expected = y_end - y_start
+        errors.append(abs(body["distance_m"] - expected) / expected)
+
+    worst = max(errors)
+    assert worst < 0.02, (
+        f"Phase 6's gate is 2%; the worst span is off by {worst:.2%}. "
+        f"Per-span errors: {[f'{e:.2%}' for e in errors]}"
+    )
