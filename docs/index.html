@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Kerbside</title>
+<meta name="description" content="Traffic analytics from a fixed roadside camera using only classical digital image processing. Vehicle counts, per-vehicle speed in km/h, lane, size class and colour — no machine learning anywhere in the pipeline.">
+<style>
+:root,[data-theme="dark"]{
+  --bg:#0b0f14;--surface:#121821;--raised:#1a2230;--line:#1e2733;--line2:#2a3644;
+  --ink:#e8eef4;--ink2:#98a6b5;--ink3:#63717f;
+  --accent:#3fa7d6;--accent-dim:#3fa7d626;
+  --ok:#2fbf71;--warn:#e8b931;--bad:#e5484d;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#fbfcfd;--surface:#ffffff;--raised:#f1f4f7;--line:#e2e8ee;--line2:#cbd5df;
+  --ink:#131a21;--ink2:#48586a;--ink3:#6e7e8e;
+  --accent:#1c6c93;--accent-dim:#1c6c9320;
+  --ok:#157a45;--warn:#8a6510;--bad:#b3282d;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
+.num,code{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:860px;margin:0 auto;padding:0 clamp(18px,5vw,28px) 72px}
+
+header{padding:calc(56px + env(safe-area-inset-top)) 0 34px;
+  border-bottom:1px solid var(--line);margin-bottom:34px;
+  background:linear-gradient(180deg,var(--surface),var(--bg))}
+.eyebrow{font:600 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(34px,8vw,60px);letter-spacing:-.03em;margin:0 0 14px;line-height:1.02}
+.lede{font-size:clamp(16px,2.4vw,20px);color:var(--ink2);max-width:60ch;margin:0}
+.lede strong{color:var(--ink);font-weight:600}
+h2{font-size:clamp(18px,3vw,23px);letter-spacing:-.015em;margin:40px 0 12px}
+p{max-width:66ch;color:var(--ink2)}
+
+.pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:20px}
+.pill{border:1px solid var(--line2);border-radius:999px;padding:3px 11px;
+  font:600 11.5px/1.7 var(--mono);color:var(--ink2);background:var(--raised)}
+.pill.acc{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+
+.cards{display:grid;gap:14px;margin-top:8px}
+@media(min-width:680px){.cards{grid-template-columns:1fr 1fr}}
+a.card{display:block;text-decoration:none;color:inherit;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;padding:18px 20px;
+  transition:border-color .15s ease,transform .15s ease}
+a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+a.card.wide{grid-column:1/-1}
+a.card .k{font:600 10px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:7px}
+a.card h3{margin:0 0 6px;font-size:18px;letter-spacing:-.01em;color:var(--ink)}
+a.card p{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink3);max-width:none}
+a.card .go{display:inline-block;margin-top:10px;font-size:13px;color:var(--accent);font-weight:500}
+
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:14px 0}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{background:var(--raised);font:600 10px/1.4 var(--mono);letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink3);white-space:nowrap}
+td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);
+  border-radius:10px}
+.met{color:var(--ok);font-weight:600}.miss{color:var(--bad);font-weight:600}
+
+.note{border:1px solid var(--line2);background:var(--surface);border-radius:10px;
+  padding:15px 18px;margin-top:22px}
+.note.warn{border-color:#8a651066;background:#e8b9310f}
+.note h3{margin:0 0 6px;font-size:15px}
+.note p{margin:0;font-size:13.5px;line-height:1.55}
+code{background:var(--raised);border:1px solid var(--line);border-radius:5px;
+  padding:1px 6px;font-size:.88em}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:13px 15px;overflow-x:auto;font:400 12.5px/1.7 var(--mono);color:var(--ink2)}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);
+  color:var(--ink3);font-size:13px}
+button.tg{position:fixed;top:calc(14px + env(safe-area-inset-top));
+  right:calc(14px + env(safe-area-inset-right));z-index:20;
+  border:1px solid var(--line2);background:var(--raised);color:var(--ink2);
+  border-radius:9px;height:32px;padding:0 12px;font:600 12px var(--sans);cursor:pointer}
+</style>
+</head>
+<body>
+<button class="tg" id="tg">Light</button>
+
+<header><div class="wrap">
+  <div class="eyebrow">Image &amp; Video Processing</div>
+  <h1>Kerbside</h1>
+  <p class="lede">
+    Traffic analytics from one fixed roadside camera, using
+    <strong>only classical digital image processing</strong>. Vehicle counts,
+    per-vehicle speed in km/h, lane, size class and colour — from pixels and a
+    one-time geometric calibration.
+  </p>
+  <div class="pills">
+    <span class="pill acc">No machine learning</span>
+    <span class="pill">Hand-written operators</span>
+    <span class="pill">CPU only</span>
+    <span class="pill">Deterministic</span>
+    <span class="pill">Exact ground truth</span>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+  <div class="cards">
+    <a class="card wide" href="kerbside-presentation.html">
+      <div class="k">Start here</div>
+      <h3>Presentation</h3>
+      <p>
+        Twenty-one slides: the problem, the geometry that replaces a training
+        set, the two independent speed routes and why they disagree, every
+        measured result, and the three gates that were not met. Swipe on a
+        tablet, arrow keys on a laptop; “Read” collapses it into one document.
+      </p>
+      <span class="go">Open the deck →</span>
+    </a>
+
+    <a class="card" href="kerbside-interface.html">
+      <div class="k">The console</div>
+      <h3>What it looks like</h3>
+      <p>
+        The operations console, built from a real run rather than drawn as a
+        mock-up: the annotated frame, each stage’s output, the metrics and the
+        vehicle table are the actual output of the pipeline.
+      </p>
+      <span class="go">See the interface →</span>
+    </a>
+
+    <a class="card" href="kerbside-implementation-plan.html">
+      <div class="k">Technical</div>
+      <h3>Implementation plan</h3>
+      <p>
+        The architecture, the technology stack and the reasoning behind each
+        choice: the homography, the nine stages, the synthetic renderer and its
+        ground-truth contract, and the traps each stage is built around.
+      </p>
+      <span class="go">Read the plan →</span>
+    </a>
+  </div>
+
+  <h2>The idea in one paragraph</h2>
+  <p>
+    A learned detector asks “is this a car?” from appearance. This system asks it
+    from <strong>size in metres</strong>. Four clicks on a rectangle of known
+    dimensions on the road give a homography — an exact map between the road plane
+    and the image. After that, a blob’s bottom edge lies on the road plane, so its
+    position is in metres and its speed is a physical quantity rather than a pixel
+    rate. A 4.4 m footprint is a car and an 11 m one is a bus. That single
+    substitution is what removes the need for any trained model, and the decision
+    boundary is a number a person can argue with.
+  </p>
+
+  <h2>Gates, as written before the code</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Phase</th><th>Criterion</th><th class="n">Outcome</th></tr></thead>
+    <tbody>
+      <tr><td>1 Geometry &amp; data</td><td>Round-trip projection under 1 px</td><td class="n met">met — &lt;10⁻⁶ px</td></tr>
+      <tr><td>2 Operators</td><td>Known-answer test for every operator</td><td class="n met">met</td></tr>
+      <tr><td>3 Detection</td><td>Blob count matches truth in ≥ 98% of frames</td><td class="n miss">not met — 25%</td></tr>
+      <tr><td>4 Measurement</td><td>Counting ≥ 99%, speed MAE ≤ 2 km/h, lane ≥ 99%</td><td class="n miss">not met — 90.9% / 9.4 / 81%</td></tr>
+      <tr><td>5 API</td><td>Annotated stream ≥ 15 fps at 720p</td><td class="n miss">not met — 1.1 fps</td></tr>
+      <tr><td>6 Console</td><td>Calibrate through the UI to within 2%</td><td class="n met">met — 0.54% worst</td></tr>
+      <tr><td>7 Studies</td><td>Exhaustive search &lt; 1 px at ≥ 20× the cost of 2-D log</td><td class="n met">met — 0.32 px at 32–36×</td></tr>
+      <tr><td>8 Hardening</td><td>Suite green, mypy strict, ruff clean</td><td class="n met">met — 280 tests</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:13.5px">
+    Five met, three not. None has been rewritten to fit the result — a gate chosen
+    after the measurement is not a gate, it is a description. The Phase 3 shortfall
+    produced the most useful work in the project: rendering the identical scene with
+    no shadows at all barely moved frame agreement, which is how
+    <strong>fragmentation</strong> rather than shadow was identified as the binding
+    constraint.
+  </p>
+
+  <div class="note warn">
+    <h3>This page is documentation, not the running system</h3>
+    <p>
+      The console is a Python process doing real image processing — decoding video,
+      running a nine-stage pipeline, streaming annotated frames and holding a clip
+      in memory. It needs a long-lived server and cannot run on a static host or a
+      serverless function. To run it, clone the repository and start it locally;
+      it needs no account, no API key and no dataset download, because it renders
+      its own traffic from a seed.
+    </p>
+    <pre>cd frontend &amp;&amp; npm install &amp;&amp; npm run build
+python run_kerbside.py --scenario free_flow --open</pre>
+  </div>
+
+  <div class="note">
+    <h3>Not an enforcement device</h3>
+    <p>
+      The system measures speed. It makes no claim to legal accuracy and has no
+      evidentiary standing; a legally admissible speed device requires type
+      approval and calibration certification this project does not have. Rows over
+      a configured limit are labelled “flagged for review”, never “violation”. No
+      number plate or face is read, stored or recognised anywhere in the design.
+    </p>
+  </div>
+
+  <footer>
+    Kerbside — classical digital image processing only. Every figure in these
+    documents is produced by a test or a script in the repository and is
+    reproducible from the source and the recorded parameters.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var b = document.getElementById('tg');
+  function set(t){
+    document.documentElement.setAttribute('data-theme', t);
+    b.textContent = t === 'dark' ? 'Light' : 'Dark';
+    document.querySelector('meta[name=theme-color]').setAttribute(
+      'content', t === 'dark' ? '#0b0f14' : '#fbfcfd');
+    try { localStorage.setItem('kerbside.site.theme', t); } catch (e) {}
+  }
+  b.addEventListener('click', function(){
+    set(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  try {
+    var saved = localStorage.getItem('kerbside.site.theme');
+    if (saved) set(saved);
+    else if (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) set('light');
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

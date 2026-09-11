@@ -1,0 +1,8 @@
+# Only docs/ is deployed. The backend is a long-lived Python process doing real
+# image processing; it cannot run as a serverless function and is not uploaded.
+backend/
+frontend/
+tests/
+data/
+.venv/
+*.py
