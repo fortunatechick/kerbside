@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kerbside",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "run_kerbside.py",
+        "--port",
+        "8000",
+        "--scenario",
+        "free_flow",
+        "--duration",
+        "6"
+      ],
+      "port": 8000
+    }
+  ]
+}

@@ -36,6 +36,8 @@ from kerbside.core.types import (
     FloatArray,
     FrameType,
     StageResult,
+    Track,
+    TrackSnapshot,
     UInt8Array,
 )
 
@@ -102,9 +104,24 @@ class FrameContext:
     blobs: tuple[Blob, ...] = ()
     labels: AnyArray | None = None
 
+    # S7 onwards. The tracker owns the track objects across frames; the context
+    # carries a view of them so S8 and S9 need no reference to the stage that
+    # produced them.
+    tracks: tuple[Track, ...] = ()
+    counted_this_frame: int = 0
+
+    #: Frozen per-frame copies, filled in after the last stage that mutates a
+    #: track. Anything that outlives the frame must use these: ``tracks`` holds
+    #: live objects, so storing them per frame stores the same object each time.
+    track_snapshots: tuple[TrackSnapshot, ...] = ()
+
     # Shared
     calibration: Calibration | None = None
     results: dict[str, StageResult] = field(default_factory=dict)
+
+    #: Set by :meth:`release_intermediates`. Endpoints that need a stage image
+    #: check this rather than probing a dozen fields for None.
+    intermediates_released: bool = False
 
     @property
     def mask(self) -> BoolArray:
@@ -123,6 +140,40 @@ class FrameContext:
             "no foreground mask has been produced yet; S4 must run before any "
             "stage that consumes one"
         )
+
+    def release_intermediates(self) -> None:
+        """Drop the large per-frame arrays, keeping what outlives the frame.
+
+        A context holds roughly 35 MB of float32 intermediates at 720p, so
+        retaining one per frame costs gigabytes over a clip and fails partway
+        through with an allocation error. What the console needs after the fact
+        is small: the frozen track snapshots, the blob records, and each stage's
+        timing and metrics. ``bgr`` is a view onto the decoded clip the session
+        already holds, so it stays - releasing it would save nothing and would
+        break the overlay.
+
+        This is one-way. :meth:`Session.context` re-runs the pipeline when a
+        released frame's intermediates are needed again.
+        """
+        self.grey = None
+        self.hsv = None
+        self.background_grey = None
+        self.background_bgr = None
+        self.difference = None
+        self.foreground = None
+        self.previous_mask = None
+        self.shadow = None
+        self.foreground_no_shadow = None
+        self.labels = None
+        self.tracks = ()
+        for result in self.results.values():
+            result.image = None
+            result.mask = None
+        self.intermediates_released = True
+
+    @property
+    def has_intermediates(self) -> bool:
+        return not self.intermediates_released
 
     def require_grey(self) -> FloatArray:
         if self.grey is None:

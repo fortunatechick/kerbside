@@ -27,6 +27,9 @@ from kerbside.stages.s3_background import BackgroundStage
 from kerbside.stages.s4_foreground import ForegroundStage
 from kerbside.stages.s5_shadow import ShadowStage
 from kerbside.stages.s6_blobs import BlobStage
+from kerbside.stages.s7_track import TrackStage
+from kerbside.stages.s8_speed import SpeedStage
+from kerbside.stages.s9_classify import ClassifyStage
 
 __all__ = ["Pipeline", "FrameOutput", "PipelineTimings"]
 
@@ -84,7 +87,7 @@ class PipelineTimings:
 
 
 class Pipeline:
-    """S1 to S6 over a sequence of frames.
+    """S1 to S9 over a sequence of frames.
 
     ``calibration`` is optional but changes what the pipeline can do rather than
     merely how well: without it the perspective size filter and every real-world
@@ -105,9 +108,13 @@ class Pipeline:
             self.foreground = ForegroundStage()
             self.shadow = ShadowStage()
             self.blobs = BlobStage()
+            self.track = TrackStage()
+            self.speed = SpeedStage()
+            self.classify = ClassifyStage()
             self._stages: list[Stage] = [
                 self.ingest, self.stabilise, self.background,
                 self.foreground, self.shadow, self.blobs,
+                self.track, self.speed, self.classify,
             ]
         else:
             self._stages = list(stages)

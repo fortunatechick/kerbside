@@ -513,15 +513,106 @@ class Track:
     ground_point_px: Point2 | None = None
     world_pos_m: Point2 | None = None
     velocity_mps: tuple[float, float] = (0.0, 0.0)
-    speed_kmph_centroid: float = 0.0
+    speed_kmph_track: float = 0.0
     speed_kmph_blockmatch: float = 0.0
-    mean_speed_kmph_centroid: float = 0.0
+    mean_speed_kmph_track: float = 0.0
     mean_speed_kmph_blockmatch: float = 0.0
     history_px: list[tuple[float, float]] = field(default_factory=list)
     history_world_m: list[tuple[float, float]] = field(default_factory=list)
     history_time_s: list[float] = field(default_factory=list)
     speed_history_kmph: list[float] = field(default_factory=list)
     gt_vehicle_id: int | None = None
+
+    def snapshot(self, frame_index: int, time_s: float) -> TrackSnapshot:
+        """An immutable record of this track right now.
+
+        Take one whenever the state has to survive the frame. Holding the Track
+        itself records a reference, not a value.
+        """
+        return TrackSnapshot(
+            track_id=self.track_id,
+            frame_index=frame_index,
+            time_s=time_s,
+            state=self.state,
+            lane_id=self.lane_id,
+            direction=self.direction,
+            counted=self.counted,
+            vehicle_class=self.vehicle_class,
+            colour_name=self.colour_name,
+            world_pos_m=(
+                None if self.world_pos_m is None else self.world_pos_m.as_tuple()
+            ),
+            ground_point_px=(
+                None if self.ground_point_px is None else self.ground_point_px.as_tuple()
+            ),
+            bbox_px=None if self.bbox_px is None else self.bbox_px.as_tuple(),
+            footprint_m=(
+                None if self.footprint_m is None else self.footprint_m.as_tuple()
+            ),
+            speed_kmph_track=self.speed_kmph_track,
+            speed_kmph_blockmatch=self.speed_kmph_blockmatch,
+            velocity_mps=self.velocity_mps,
+            hits=self.hits,
+            age_frames=self.age_frames,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TrackSnapshot:
+    """A track's state at one frame, frozen.
+
+    :class:`Track` is mutable and lives across frames, which is what a tracker
+    needs and exactly wrong for anything that records history: keeping a
+    reference to it per frame stores the same object every time, so the whole
+    record silently shows the final state. That produced a Phase 4 speed error
+    of 21 km/h before it was noticed, because every frame was scored against the
+    track's last position.
+
+    Anything that outlives the frame - telemetry over the WebSocket, the
+    evaluation harness, the analytics history - takes one of these instead.
+    """
+
+    track_id: int
+    frame_index: int
+    time_s: float
+    state: TrackState
+    lane_id: int | None
+    direction: Direction
+    counted: bool
+    vehicle_class: VehicleClass
+    colour_name: str
+    world_pos_m: tuple[float, float] | None
+    ground_point_px: tuple[float, float] | None
+    bbox_px: tuple[float, float, float, float] | None
+    footprint_m: tuple[float, float, float] | None
+    speed_kmph_track: float
+    speed_kmph_blockmatch: float
+    velocity_mps: tuple[float, float]
+    hits: int
+    age_frames: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "track_id": self.track_id,
+            "frame_index": self.frame_index,
+            "time_s": self.time_s,
+            "state": self.state.value,
+            "lane_id": self.lane_id,
+            "direction": self.direction.value,
+            "counted": self.counted,
+            "vehicle_class": self.vehicle_class.value,
+            "colour_name": self.colour_name,
+            "world_pos_m": list(self.world_pos_m) if self.world_pos_m else None,
+            "ground_point_px": (
+                list(self.ground_point_px) if self.ground_point_px else None
+            ),
+            "bbox_px": list(self.bbox_px) if self.bbox_px else None,
+            "footprint_m": list(self.footprint_m) if self.footprint_m else None,
+            "speed_kmph_track": self.speed_kmph_track,
+            "speed_kmph_blockmatch": self.speed_kmph_blockmatch,
+            "hits": self.hits,
+            "age_frames": self.age_frames,
+        }
 
 
 @dataclass(slots=True)

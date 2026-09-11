@@ -1,0 +1,156 @@
+/* The design tokens.
+ *
+ * Dark ships first and ships flawless; light redefines the same names under
+ * [data-theme="light"] so no component ever branches on theme. A component that
+ * writes a raw hex has broken this contract.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  --bg-base: #0b0f14;
+  --bg-surface: #121821;
+  --bg-raised: #1a2230;
+  --bg-overlay: #212b3a;
+
+  --border-subtle: #1e2733;
+  --border-default: #2a3644;
+  --border-strong: #3a4959;
+
+  --text-primary: #e8eef4;
+  --text-secondary: #98a6b5;
+  --text-muted: #63717f;
+  --text-inverse: #0b0f14;
+
+  --accent: #3fa7d6;
+  --accent-hover: #55b9e4;
+  --accent-dim: #3fa7d626;
+
+  --flow-free: #2fbf71;
+  --flow-slow: #e8b931;
+  --flow-stop: #e5484d;
+  --shadow-hl: #a78bfa;
+  --motion-hl: #f97362;
+}
+
+:root[data-theme="light"] {
+  --bg-base: #fbfcfd;
+  --bg-surface: #ffffff;
+  --bg-raised: #f1f4f7;
+  --bg-overlay: #e8edf2;
+
+  --border-subtle: #e2e8ee;
+  --border-default: #cbd5df;
+  --border-strong: #a9b7c4;
+
+  --text-primary: #131a21;
+  --text-secondary: #48586a;
+  --text-muted: #6e7e8e;
+  --text-inverse: #ffffff;
+
+  --accent: #1c6c93;
+  --accent-hover: #175a7c;
+  --accent-dim: #1c6c9320;
+
+  --flow-free: #157a45;
+  --flow-slow: #8a6510;
+  --flow-stop: #b3282d;
+  --shadow-hl: #6d4fd0;
+  --motion-hl: #c9432f;
+}
+
+/* Fonts are bundled rather than fetched from a CDN: the console has to work on
+ * a machine with no internet, and a fallback font would break the tabular
+ * alignment that makes the numbers readable. The stacks below degrade to the
+ * platform's own faces if the bundled ones are unavailable. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every number in the interface is monospace with tabular figures. This single
+ * rule is most of what makes the console read as an instrument. */
+.num {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 5px;
+  border: 2px solid var(--bg-base);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 18px;
+  width: 100%;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: var(--border-default);
+  border-radius: 2px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: -4.5px;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+  height: 3px;
+  background: var(--border-default);
+  border-radius: 2px;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* Metric delta flash. Motion budget is 120-180ms, opacity and small transforms
+ * only; this and the count tick are the two deliberate exceptions to "no
+ * animation", because a change the user caused should be visible. */
+@keyframes deltaFlash {
+  0% { opacity: 0; transform: translateY(3px); }
+  15% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.delta-flash {
+  animation: deltaFlash 1500ms ease-out forwards;
+}

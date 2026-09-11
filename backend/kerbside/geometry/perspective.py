@@ -376,6 +376,29 @@ class PerspectiveModel:
             return None
         return (float(homo[0] / homo[2]), float(homo[1] / homo[2]))
 
+    def homography_at_height(self, height_m: float) -> FloatArray | None:
+        """Homography of the horizontal plane ``height_m`` above the road.
+
+        With ``H = s K [r1 r2 t]``, the plane ``z = h`` has camera translation
+        ``t + h r3``, so its homography is ``H + s h (K r3)`` in the third
+        column - the same matrix with one term added.
+
+        S8 needs this. Block matching measures the displacement of *texture on
+        the vehicle body*, which is a metre or so above the road, and mapping
+        that image displacement through the road-plane homography attributes it
+        to the wrong plane. The error is systematic and scales with the height
+        of whatever the blocks happened to lock onto, so it does not average
+        out.
+        """
+        vm = self._vertical
+        if vm is None:
+            return None
+        h = self.h_world_to_img.copy()
+        h[:, 2] = h[:, 2] + vm.scale_s * height_m * vm.k_r3
+        if abs(h[2, 2]) < 1e-12:
+            return None
+        return normalise_h(h)
+
     # -- row tables --------------------------------------------------------
 
     def _build_row_table(self) -> FloatArray:

@@ -56,6 +56,10 @@ __all__ = [
     "score_detection",
     "count_accuracy",
     "false_merge_rate",
+    "SpeedComparison",
+    "match_tracks_to_vehicles",
+    "score_speed",
+    "score_lane_and_class",
 ]
 
 
@@ -441,3 +445,200 @@ def count_accuracy(
 def false_merge_rate(metrics: DetectionMetrics) -> float:
     """Convenience accessor, so the ablation reads as what it measures."""
     return metrics.false_merge_rate
+
+
+# --------------------------------------------------------------------------
+# Phase 4: tracking, counting, speed, lane and class
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SpeedComparison:
+    """Both speed routes scored against ground truth, side by side.
+
+    The comparison is the point. Route A measures where a silhouette's edge is
+    and Route B where texture went, so they fail in independent ways; reporting
+    only the better one would hide which conditions each suits.
+    """
+
+    samples: int
+    track_mae_kmph: float
+    track_bias_kmph: float
+    blockmatch_mae_kmph: float
+    blockmatch_bias_kmph: float
+    blockmatch_samples: int
+    agreement_kmph: float
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "samples": self.samples,
+            "track_mae_kmph": self.track_mae_kmph,
+            "track_bias_kmph": self.track_bias_kmph,
+            "blockmatch_samples": self.blockmatch_samples,
+            "blockmatch_mae_kmph": self.blockmatch_mae_kmph,
+            "blockmatch_bias_kmph": self.blockmatch_bias_kmph,
+            "route_agreement_kmph": self.agreement_kmph,
+        }
+
+
+def match_tracks_to_vehicles(
+    per_frame_tracks: Sequence[Sequence[Any]],
+    ground_truth: GroundTruth,
+    max_distance_m: float = 4.0,
+    skip_frames: int = 0,
+) -> dict[int, int]:
+    """Assign each track the ground-truth vehicle it overlapped most.
+
+    By majority over the track's whole life rather than by its first frame: a
+    track that starts on a shadow and settles onto a vehicle belongs to the
+    vehicle. The comparison is against the vehicle's *near extremity*, because
+    that is what a ground point measures - see the Phase 1 findings.
+    """
+    tally: dict[int, dict[int, int]] = {}
+    for index, tracks in enumerate(per_frame_tracks):
+        if index < skip_frames or index >= len(ground_truth.frames):
+            continue
+        vehicles = ground_truth.frames[index].vehicles
+        for track in tracks:
+            position = getattr(track, "world_pos_m", None)
+            if position is None:
+                continue
+            px, py = (position if isinstance(position, tuple) else (position.x, position.y))
+            best_id, best_d = None, max_distance_m
+            for vehicle in vehicles:
+                if not vehicle.visible:
+                    continue
+                near_y = vehicle.world_pos_m[1] - vehicle.footprint_m[0] / 2.0
+                d = float(np.hypot(px - vehicle.world_pos_m[0], py - near_y))
+                if d < best_d:
+                    best_id, best_d = vehicle.vehicle_id, d
+            if best_id is not None:
+                tally.setdefault(track.track_id, {})
+                tally[track.track_id][best_id] = tally[track.track_id].get(best_id, 0) + 1
+
+    return {
+        track_id: max(votes, key=lambda k: votes[k])
+        for track_id, votes in tally.items()
+        if votes
+    }
+
+
+def score_speed(
+    per_frame_tracks: Sequence[Sequence[Any]],
+    per_frame_estimates: Sequence[dict[int, Any]],
+    ground_truth: GroundTruth,
+    assignment: dict[int, int],
+    min_speed_kmph: float = 5.0,
+    skip_frames: int = 0,
+) -> SpeedComparison:
+    """Score both speed routes against the recorded per-frame speeds.
+
+    Near-stationary vehicles are excluded: a relative error is meaningless
+    there and an absolute one measures the tracker's velocity filter settling
+    rather than either route.
+    """
+    track_errors: list[float] = []
+    block_errors: list[float] = []
+    agreements: list[float] = []
+
+    for index, tracks in enumerate(per_frame_tracks):
+        if index < skip_frames or index >= len(ground_truth.frames):
+            continue
+        truth_by_id = {v.vehicle_id: v for v in ground_truth.frames[index].vehicles}
+        estimates = per_frame_estimates[index] if index < len(per_frame_estimates) else {}
+        for track in tracks:
+            vehicle_id = assignment.get(track.track_id)
+            if vehicle_id is None:
+                continue
+            vehicle = truth_by_id.get(vehicle_id)
+            if vehicle is None or vehicle.speed_kmph < min_speed_kmph:
+                continue
+            estimate = estimates.get(track.track_id)
+            if estimate is None:
+                continue
+            if estimate.track_kmph > 0:
+                track_errors.append(estimate.track_kmph - vehicle.speed_kmph)
+            if estimate.blockmatch_usable and estimate.blockmatch_kmph > 0:
+                block_errors.append(estimate.blockmatch_kmph - vehicle.speed_kmph)
+                if estimate.track_kmph > 0:
+                    agreements.append(estimate.agreement_kmph)
+
+    def mae(values: list[float]) -> float:
+        return float(np.mean(np.abs(values))) if values else float("nan")
+
+    def bias(values: list[float]) -> float:
+        return float(np.mean(values)) if values else float("nan")
+
+    return SpeedComparison(
+        samples=len(track_errors),
+        track_mae_kmph=mae(track_errors),
+        track_bias_kmph=bias(track_errors),
+        blockmatch_samples=len(block_errors),
+        blockmatch_mae_kmph=mae(block_errors),
+        blockmatch_bias_kmph=bias(block_errors),
+        agreement_kmph=float(np.median(agreements)) if agreements else float("nan"),
+    )
+
+
+def score_lane_and_class(
+    per_frame_tracks: Sequence[Sequence[Any]],
+    ground_truth: GroundTruth,
+    assignment: dict[int, int],
+    skip_frames: int = 0,
+) -> dict[str, Any]:
+    """Lane-assignment and class accuracy over matched tracks.
+
+    Lane is scored per frame - a track can drift across a boundary and the
+    question is how often the assignment is right. Class and colour are scored
+    once per track, because they are properties of the vehicle and S9
+    accumulates evidence over the whole track.
+    """
+    lane_correct = lane_total = 0
+    class_by_track: dict[int, tuple[str, str]] = {}
+    colour_by_track: dict[int, tuple[str, str]] = {}
+
+    for index, tracks in enumerate(per_frame_tracks):
+        if index < skip_frames or index >= len(ground_truth.frames):
+            continue
+        truth_by_id = {v.vehicle_id: v for v in ground_truth.frames[index].vehicles}
+        for track in tracks:
+            vehicle_id = assignment.get(track.track_id)
+            vehicle = truth_by_id.get(vehicle_id) if vehicle_id is not None else None
+            if vehicle is None:
+                continue
+            if track.lane_id is not None:
+                lane_total += 1
+                lane_correct += int(track.lane_id == vehicle.lane_id)
+            class_by_track[track.track_id] = (
+                track.vehicle_class.value,
+                vehicle.vehicle_class.value,
+            )
+            colour_by_track[track.track_id] = (track.colour_name, vehicle.colour_name)
+
+    classed = [(p, t) for p, t in class_by_track.values() if p != "unknown"]
+    coloured = [(p, t) for p, t in colour_by_track.values() if p != "unknown"]
+    return {
+        "lane_accuracy": lane_correct / lane_total if lane_total else 0.0,
+        "lane_samples": lane_total,
+        "class_accuracy": (
+            sum(p == t for p, t in classed) / len(classed) if classed else 0.0
+        ),
+        "class_samples": len(classed),
+        "class_named_fraction": (
+            len(classed) / len(class_by_track) if class_by_track else 0.0
+        ),
+        "colour_accuracy": (
+            sum(p == t for p, t in coloured) / len(coloured) if coloured else 0.0
+        ),
+        "colour_samples": len(coloured),
+        "class_confusion": _confusion(classed),
+    }
+
+
+def _confusion(pairs: list[tuple[str, str]]) -> dict[str, dict[str, int]]:
+    """Which classes are confused for which - the informative part of a score."""
+    out: dict[str, dict[str, int]] = {}
+    for predicted, truth in pairs:
+        out.setdefault(truth, {})
+        out[truth][predicted] = out[truth].get(predicted, 0) + 1
+    return out

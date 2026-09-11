@@ -1,0 +1,1399 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ffffff">
+<title>Kerbside — Implementation Plan</title>
+<style>
+/* ============================================================ tokens == */
+:root{
+  --bg:#ffffff; --panel:#f6f8fa; --panel2:#eef2f6; --line:#dde4ec; --line2:#c3cfdb;
+  --ink:#101720; --ink2:#43536a; --ink3:#6c7e93;
+  --accent:#0f6ea3; --accent-soft:#e6f1f8;
+  --ok:#137a45; --warn:#8a6210; --bad:#b02a2f;
+  --ok-soft:#e6f4ec; --warn-soft:#fbf2df; --bad-soft:#fbeaea;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --shadow:0 1px 2px rgba(16,23,32,.05),0 8px 24px rgba(16,23,32,.06);
+}
+html[data-theme="dark"]{
+  --bg:#0b0f14; --panel:#141b24; --panel2:#1c2531; --line:#232e3b; --line2:#33414f;
+  --ink:#e9eff5; --ink2:#a3b1c0; --ink3:#778796;
+  --accent:#4aabdb; --accent-soft:#12303f;
+  --ok:#3ec27e; --warn:#e0b545; --bad:#ef6b6f;
+  --ok-soft:#11291d; --warn-soft:#2a2311; --bad-soft:#2c1517;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--ink)}
+body{
+  font-family:var(--sans); font-size:16px; line-height:1.55;
+  -webkit-text-size-adjust:100%; text-rendering:optimizeLegibility;
+  overscroll-behavior:none;
+}
+.num,code,kbd{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ============================================================== deck == */
+#deck{position:relative;width:100%;min-height:100%}
+.slide{display:none}
+.slide.on{display:block}
+
+/* slide chrome: a slide is a padded, centred column that fills the screen */
+.slide{
+  min-height:100dvh; min-height:100vh;
+  padding:calc(46px + env(safe-area-inset-top)) clamp(18px,4.5vw,64px) calc(74px + env(safe-area-inset-bottom));
+  max-width:1180px; margin:0 auto;
+}
+@supports(-webkit-touch-callout:none){.slide{min-height:-webkit-fill-available}}
+
+/* ============================================== read (document) mode == */
+body.read .slide{display:block;min-height:0;padding-top:34px;padding-bottom:34px;border-bottom:1px solid var(--line)}
+body.read .slide:last-child{border-bottom:0}
+body.read #nav-arrows{display:none}
+body.read #dots{display:none}
+
+/* ============================================================= type == */
+.eyebrow{
+  font:600 11.5px/1 var(--mono); letter-spacing:.15em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+.eyebrow .sep{width:22px;height:1px;background:var(--line2);display:inline-block}
+h1{font-size:clamp(30px,6.4vw,58px);line-height:1.06;letter-spacing:-.025em;margin:0 0 18px;font-weight:700}
+h2{font-size:clamp(23px,3.8vw,38px);line-height:1.14;letter-spacing:-.02em;margin:0 0 10px;font-weight:680}
+h3{font-size:clamp(15px,2vw,18px);line-height:1.3;margin:22px 0 8px;font-weight:640}
+.lede{font-size:clamp(15px,2.1vw,19px);line-height:1.55;color:var(--ink2);margin:0 0 26px;max-width:64ch}
+p{margin:0 0 12px;max-width:74ch}
+.sub{color:var(--ink2)}
+.small{font-size:13.5px;line-height:1.5;color:var(--ink2)}
+.tiny{font-size:12px;line-height:1.45;color:var(--ink3)}
+strong{font-weight:640;color:var(--ink)}
+em{font-style:normal;background:var(--accent-soft);color:var(--accent);
+   padding:1px 5px;border-radius:4px;font-weight:600}
+a{color:var(--accent)}
+ul,ol{margin:0 0 14px;padding-left:20px;max-width:74ch}
+li{margin:0 0 7px}
+li::marker{color:var(--ink3)}
+hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+
+/* ============================================================ layout == */
+.cols{display:grid;gap:clamp(12px,2vw,22px)}
+@media(min-width:760px){
+  .cols.c2{grid-template-columns:1fr 1fr}
+  .cols.c3{grid-template-columns:repeat(3,1fr)}
+  .cols.c4{grid-template-columns:repeat(4,1fr)}
+  .cols.wide-left{grid-template-columns:1.35fr 1fr}
+  .cols.wide-right{grid-template-columns:1fr 1.35fr}
+}
+@media(max-width:759px){.cols.c4{grid-template-columns:1fr 1fr}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card h3{margin-top:0}
+.card.flat{background:transparent}
+.card.accent{border-color:var(--accent);background:var(--accent-soft)}
+.card.good{border-color:color-mix(in srgb,var(--ok) 40%,var(--line));background:var(--ok-soft)}
+.card.bad{border-color:color-mix(in srgb,var(--bad) 40%,var(--line));background:var(--bad-soft)}
+.card.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:var(--warn-soft)}
+
+/* ============================================================= stats == */
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.stat .k{font:600 10px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.stat .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;
+         font-size:clamp(22px,3.6vw,32px);line-height:1.05;letter-spacing:-.02em}
+.stat .u{font-size:12px;font-weight:500;color:var(--ink3);margin-left:3px}
+.stat .n{font-size:12px;color:var(--ink3);margin-top:5px;line-height:1.35}
+.v.ok{color:var(--ok)} .v.bad{color:var(--bad)} .v.warn{color:var(--warn)} .v.acc{color:var(--accent)}
+
+/* ============================================================ tables == */
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);
+        border-radius:12px;margin:0 0 14px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:460px;font-size:13.5px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font:600 10px/1.4 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+   color:var(--ink3);background:var(--panel2);white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--panel2) 45%,transparent)}
+
+/* ============================================================= chips == */
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
+      padding:2px 9px;font:600 11px/1.6 var(--mono);color:var(--ink2);background:var(--panel);white-space:nowrap}
+.chip.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-soft)}
+.chip.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:var(--bad-soft)}
+.chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,var(--line));background:var(--warn-soft)}
+.chip.acc{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+
+code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;
+     padding:1px 5px;font-size:.88em}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;font:400 12.5px/1.6 var(--mono);
+    color:var(--ink2);margin:0 0 14px}
+pre b{color:var(--accent);font-weight:600}
+
+/* ============================================================== svg == */
+figure{margin:0 0 16px}
+svg{display:block;width:100%;height:auto;max-width:100%}
+figcaption{font-size:12.5px;color:var(--ink3);margin-top:8px;line-height:1.45}
+.sv-fill{fill:var(--panel)} .sv-fill2{fill:var(--panel2)} .sv-acc{fill:var(--accent-soft)}
+.sv-line{stroke:var(--line2);fill:none;stroke-width:1.4}
+.sv-accline{stroke:var(--accent);fill:none;stroke-width:1.8}
+.sv-t{fill:var(--ink);font-family:var(--sans);font-size:12px;font-weight:600}
+.sv-t2{fill:var(--ink2);font-family:var(--sans);font-size:10.5px}
+.sv-m{fill:var(--ink2);font-family:var(--mono);font-size:10px}
+.sv-ta{fill:var(--accent);font-family:var(--sans);font-size:11px;font-weight:600}
+
+/* ================================================= flow (stage chain) == */
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:0 0 16px}
+.flow .step{flex:1 1 120px;min-width:104px;background:var(--panel);border:1px solid var(--line);
+            border-radius:9px;padding:9px 10px}
+.flow .step .id{font:700 10px/1.3 var(--mono);color:var(--accent);letter-spacing:.06em}
+.flow .step .nm{font-size:12.5px;font-weight:600;line-height:1.25;margin-top:2px}
+.flow .step .u{font:500 9.5px/1.3 var(--mono);color:var(--ink3);margin-top:4px}
+
+/* ============================================================== nav == */
+#topbar{position:fixed;top:0;left:0;right:0;height:calc(40px + env(safe-area-inset-top));
+        padding:env(safe-area-inset-top) 10px 0;display:flex;align-items:center;gap:8px;
+        background:color-mix(in srgb,var(--bg) 88%,transparent);
+        -webkit-backdrop-filter:saturate(160%) blur(12px);backdrop-filter:saturate(160%) blur(12px);
+        border-bottom:1px solid var(--line);z-index:60}
+#progress{position:absolute;left:0;bottom:-1px;height:2px;background:var(--accent);width:0;
+          transition:width .22s ease}
+.tb-title{font:600 12px/1 var(--sans);color:var(--ink2);letter-spacing:.01em;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.tb-title b{color:var(--ink);font-weight:680}
+.btn{appearance:none;-webkit-appearance:none;border:1px solid var(--line2);background:var(--panel);
+     color:var(--ink2);border-radius:8px;height:30px;min-width:34px;padding:0 9px;
+     font:600 12px/1 var(--sans);cursor:pointer;display:inline-flex;align-items:center;
+     justify-content:center;gap:5px;touch-action:manipulation}
+.btn:active{background:var(--panel2)}
+.btn.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.count{font:600 12px/1 var(--mono);color:var(--ink3);min-width:52px;text-align:right}
+
+#nav-arrows{position:fixed;right:calc(12px + env(safe-area-inset-right));
+            bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:60}
+#nav-arrows .btn{height:42px;min-width:46px;border-radius:11px;font-size:17px;box-shadow:var(--shadow)}
+
+/* table of contents drawer */
+#toc{position:fixed;inset:0;z-index:80;display:none}
+#toc.open{display:block}
+#toc .scrim{position:absolute;inset:0;background:rgba(8,12,17,.45)}
+#toc .sheet{position:absolute;top:0;bottom:0;left:0;width:min(360px,86vw);background:var(--bg);
+            border-right:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch;
+            padding:calc(14px + env(safe-area-inset-top)) 0 24px;box-shadow:var(--shadow)}
+#toc h4{margin:0;padding:6px 18px 12px;font:600 10.5px/1 var(--mono);letter-spacing:.14em;
+        text-transform:uppercase;color:var(--ink3)}
+#toc button{display:flex;gap:11px;align-items:baseline;width:100%;text-align:left;background:none;
+            border:0;border-left:2px solid transparent;padding:8px 18px;color:var(--ink2);
+            font:500 13.5px/1.3 var(--sans);cursor:pointer}
+#toc button:active{background:var(--panel)}
+#toc button.cur{color:var(--accent);border-left-color:var(--accent);background:var(--accent-soft);font-weight:640}
+#toc button .i{font:600 10.5px/1.3 var(--mono);color:var(--ink3);min-width:18px}
+#toc button.cur .i{color:var(--accent)}
+
+/* tap zones for iPad: left third back, right third forward */
+#tapL,#tapR{position:fixed;top:44px;bottom:64px;width:22%;z-index:20}
+#tapL{left:0} #tapR{right:0}
+body.read #tapL,body.read #tapR{display:none}
+
+.hint{position:fixed;left:calc(12px + env(safe-area-inset-left));
+      max-width:min(52vw,420px);
+      bottom:calc(18px + env(safe-area-inset-bottom));z-index:55;
+      font:500 11.5px/1 var(--sans);color:var(--ink3);background:var(--panel);
+      border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+      box-shadow:var(--shadow);transition:opacity .4s ease}
+.hint.gone{opacity:0;pointer-events:none}
+
+/* ============================================================ print == */
+@media print{
+  :root{--bg:#fff;--panel:#fff;--panel2:#f3f5f7;--ink:#000;--ink2:#333;--ink3:#666;--line:#ccc;--line2:#bbb}
+  #topbar,#nav-arrows,#toc,#tapL,#tapR,.hint{display:none!important}
+  .slide{display:block!important;min-height:0;page-break-after:always;padding:0 0 24px;max-width:none}
+  .slide:last-child{page-break-after:auto}
+  h1{font-size:30px}h2{font-size:22px}
+  .card,.stat,.scroll,pre{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<!-- ====================================================== top bar ==== -->
+<header id="topbar">
+  <button class="btn" id="menu" aria-label="Contents">☰</button>
+  <div class="tb-title"><b>Kerbside</b> · Traffic analytics with classical DIP only</div>
+  <button class="btn" id="mode" title="Toggle slide / document mode">Read</button>
+  <button class="btn" id="theme" title="Toggle dark mode" aria-label="Theme">◐</button>
+  <span class="count" id="count">1 / 21</span>
+  <div id="progress"></div>
+</header>
+
+<div id="tapL" aria-hidden="true"></div>
+<div id="tapR" aria-hidden="true"></div>
+
+<nav id="toc"><div class="scrim"></div><div class="sheet"><h4>Contents</h4><div id="toclist"></div></div></nav>
+
+<main id="deck">
+
+<!-- ================================================== 1 · title ====== -->
+<section class="slide on" data-title="Title">
+  <div style="min-height:min(66dvh,560px);display:flex;flex-direction:column;justify-content:center">
+    <div class="eyebrow">Image &amp; Video Processing<span class="sep"></span>Implementation Plan</div>
+    <h1>Kerbside</h1>
+    <p class="lede" style="font-size:clamp(17px,2.6vw,23px);color:var(--ink);max-width:22ch;font-weight:600;letter-spacing:-.015em">
+      Measuring traffic from one fixed camera, using nothing but classical
+      image processing and geometry.
+    </p>
+    <p class="lede" style="margin-bottom:20px">
+      Vehicle counts, per-vehicle speed in km/h, lane assignment, size class and
+      colour — from pixels and a one-time calibration. No neural network appears
+      anywhere in the pipeline, and that is the point of the project rather than
+      a limitation of it.
+    </p>
+    <div class="chips">
+      <span class="chip acc">No machine learning</span>
+      <span class="chip">Hand-written operators</span>
+      <span class="chip">CPU only</span>
+      <span class="chip">Deterministic</span>
+      <span class="chip">Exact ground truth</span>
+    </div>
+    <p class="tiny" style="margin-top:14px">
+      Swipe, tap the sides, or use ← → to move. <kbd>Read</kbd> switches to a single
+      scrolling document.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 2 · problem ==== -->
+<section class="slide" data-title="The problem">
+  <div class="eyebrow">01<span class="sep"></span>The problem</div>
+  <h2>A camera on a pole, and four questions</h2>
+  <p class="lede">
+    A traffic engineer with one fixed roadside camera wants to know how many
+    vehicles passed, how fast each was going, which lane it used, and roughly
+    what size it was. Every one of those is a measurement in metres and seconds,
+    taken from an image indexed in pixels and frames.
+  </p>
+  <div class="cols c2">
+    <div class="card">
+      <h3>What makes it hard</h3>
+      <ul>
+        <li>A pixel is not a metre, and how many metres it is worth changes with every image row.</li>
+        <li>Cast shadows move with the vehicle, so they are foreground by every motion test, and they bridge adjacent vehicles into one blob.</li>
+        <li>A dark window band splits one vehicle into a roof blob and a bumper blob.</li>
+        <li>The declared frame rate in a video container is frequently a lie, and speed divides by time.</li>
+        <li>Vehicles occlude one another, and the one behind is the one you lose.</li>
+      </ul>
+    </div>
+    <div class="card accent">
+      <h3>The claim being tested</h3>
+      <p>
+        That a fully classical pipeline — background modelling, morphology,
+        connected components, colour-space reasoning, block matching, and a
+        planar homography — can produce a <strong>calibrated physical measurement</strong>,
+        not just a detection.
+      </p>
+      <p style="margin-bottom:0">
+        A detector says <em>vehicle</em>. This system says
+        <em>58.2 km/h, lane 2, 4.4 m long</em>, and can show you which pixels and
+        which geometry produced that number.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 3 · premise ==== -->
+<section class="slide" data-title="Core premise">
+  <div class="eyebrow">02<span class="sep"></span>Core premise</div>
+  <h2>Geometry replaces the training set</h2>
+  <p class="lede">
+    A learned detector answers "is this a car?" from appearance. This project
+    answers it from <strong>size in metres</strong>. That single substitution is
+    what removes the need for any trained model.
+  </p>
+  <div class="cols c3">
+    <div class="card">
+      <div class="chip acc" style="margin-bottom:9px">Step 1</div>
+      <h3 style="margin-top:0">Calibrate once</h3>
+      <p class="small" style="margin:0">
+        Click four points on the road surface whose real-world rectangle you know
+        — lane width across, dashed-line pitch along. That gives a
+        <strong>homography</strong>: an exact map between the road plane and the image.
+      </p>
+    </div>
+    <div class="card">
+      <div class="chip acc" style="margin-bottom:9px">Step 2</div>
+      <h3 style="margin-top:0">Measure in metres</h3>
+      <p class="small" style="margin:0">
+        Any point <em>on the road plane</em> now has world coordinates. A blob's
+        bottom-centre is on the road plane, so its position, and therefore its
+        speed, is a physical quantity.
+      </p>
+    </div>
+    <div class="card">
+      <div class="chip acc" style="margin-bottom:9px">Step 3</div>
+      <h3 style="margin-top:0">Classify by footprint</h3>
+      <p class="small" style="margin:0">
+        Project the blob's ground extent to metres. 4.4 m long is a car;
+        11 m is a bus. No training data, no weights, and the decision boundary
+        is a number a person can argue with.
+      </p>
+    </div>
+  </div>
+  <div class="card warn" style="margin-top:16px">
+    <h3 style="margin-top:0">The honest cost of this choice</h3>
+    <p class="small" style="margin:0">
+      Everything is now downstream of the mask. If segmentation splits a vehicle,
+      the footprint halves and the class is wrong. A learned detector would be
+      robust to that and would also be a black box that this module is not about.
+      <strong>The trade is deliberate, and the measured consequences are reported on later slides
+      rather than hidden.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 4 · stack ====== -->
+<section class="slide" data-title="Technology stack">
+  <div class="eyebrow">03<span class="sep"></span>Technology stack</div>
+  <h2>Deliberately small</h2>
+  <p class="lede">
+    Every dependency has to earn its place. Nothing here needs an account, an API
+    key, a licence, a GPU or a download larger than a pip wheel.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Layer</th><th>Choice</th><th>Why this and not the obvious alternative</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Numerics</strong></td><td class="n">NumPy</td>
+            <td>Every operator is written as array arithmetic, so the code reads like the equation in the notes.</td></tr>
+        <tr><td><strong>I/O &amp; oracle</strong></td><td class="n">OpenCV</td>
+            <td>Video decode, JPEG encode, and a <em>test oracle only</em>. Its filters are never the production path — they are what the hand-written ones are asserted against.</td></tr>
+        <tr><td><strong>Speed-ups</strong></td><td class="n">SciPy</td>
+            <td><code>ndimage</code> labelling and <code>find_objects</code>, after profiling showed a pure-NumPy component pass costing 23 ms per call.</td></tr>
+        <tr><td><strong>API</strong></td><td class="n">FastAPI + Uvicorn</td>
+            <td>Typed request models, automatic OpenAPI docs, native WebSocket, and it can serve the built frontend from the same origin — so there is no CORS to configure and one process to start.</td></tr>
+        <tr><td><strong>Video to browser</strong></td><td class="n">MJPEG</td>
+            <td>A <code>&lt;img&gt;</code> tag and a multipart response. No WebRTC negotiation, no codec, works offline, and each frame is already an independent JPEG the pipeline just produced.</td></tr>
+        <tr><td><strong>Telemetry</strong></td><td class="n">WebSocket</td>
+            <td>Small JSON per frame — counts, tracks, timings. Frames deliberately do <em>not</em> go down this socket: 2.7 MB per frame would starve the messages that keep the UI responsive.</td></tr>
+        <tr><td><strong>UI</strong></td><td class="n">React 18 + TypeScript</td>
+            <td>Strict mode. The API client is fully typed, so a backend field rename fails the build rather than rendering <code>undefined</code>.</td></tr>
+        <tr><td><strong>Build / style</strong></td><td class="n">Vite + Tailwind</td>
+            <td>Sub-second HMR; every Tailwind colour maps to a CSS custom property, so light and dark are one token file rather than two component trees.</td></tr>
+        <tr><td><strong>State</strong></td><td class="n">Zustand + TanStack Query</td>
+            <td>Zustand for UI state, Query for server state. Keeping those separate is what stops a parameter slider from re-fetching the whole pipeline.</td></tr>
+        <tr><td><strong>Charts</strong></td><td class="n">Recharts</td>
+            <td>Composable SVG. The fundamental diagram and speed histogram are ordinary components, not an embedded plotting library.</td></tr>
+        <tr><td><strong>Quality</strong></td><td class="n">pytest · ruff · mypy</td>
+            <td>Strict typing on the backend too. Physical quantities carry their unit in the name: <code>speed_kmph</code>, <code>dist_m</code>, <code>dx_px</code>, <code>dt_s</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cols c3">
+    <div class="card bad" style="padding:12px 15px">
+      <h3 style="margin:0 0 6px">Explicitly not used</h3>
+      <p class="small" style="margin:0">No PyTorch, TensorFlow, YOLO, Haar cascades, HOG+SVM, <code>cv2.dnn</code>,
+      scikit-learn classifiers, or any pretrained weights.</p>
+    </div>
+    <div class="card" style="padding:12px 15px">
+      <h3 style="margin:0 0 6px">No database</h3>
+      <p class="small" style="margin:0">In-memory session plus files on disk. A run is reproducible from a
+      video and a parameter set; persistence would add a migration story and answer no question.</p>
+    </div>
+    <div class="card" style="padding:12px 15px">
+      <h3 style="margin:0 0 6px">No auth, no Docker</h3>
+      <p class="small" style="margin:0">Single-user local tool. <code>python -m kerbside.serve</code> starts
+      everything on one port.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 5 · architecture -->
+<section class="slide" data-title="Architecture">
+  <div class="eyebrow">04<span class="sep"></span>Architecture</div>
+  <h2>One process, three surfaces</h2>
+  <figure>
+  <svg viewBox="0 0 900 380" role="img" aria-label="Architecture diagram">
+    <!-- browser -->
+    <rect x="14" y="20" width="250" height="340" rx="12" class="sv-fill" stroke="var(--line2)"/>
+    <text x="30" y="46" class="sv-t">Browser — operations console</text>
+    <text x="30" y="63" class="sv-t2">React 18 · TypeScript · Vite</text>
+    <rect x="30" y="78" width="218" height="52" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="42" y="99" class="sv-t">Viewport</text>
+    <text x="42" y="115" class="sv-t2">&lt;img&gt; on the MJPEG stream + SVG overlay</text>
+    <rect x="30" y="140" width="218" height="52" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="42" y="161" class="sv-t">Parameter rail</text>
+    <text x="42" y="177" class="sv-t2">Sliders from the operator registry</text>
+    <rect x="30" y="202" width="218" height="52" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="42" y="223" class="sv-t">Inspector</text>
+    <text x="42" y="239" class="sv-t2">Per-track numbers, live telemetry</text>
+    <rect x="30" y="264" width="218" height="52" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="42" y="285" class="sv-t">Labs &amp; analytics</text>
+    <text x="42" y="301" class="sv-t2">Shadow · Motion · Ablation · Report</text>
+
+    <!-- arrows -->
+    <path d="M264 104 H 330" class="sv-accline" marker-end="url(#ar)"/>
+    <text x="272" y="96" class="sv-ta">MJPEG</text>
+    <path d="M264 166 H 330" class="sv-accline" marker-end="url(#ar)"/>
+    <text x="272" y="158" class="sv-ta">REST</text>
+    <path d="M330 228 H 264" class="sv-accline" marker-end="url(#ar)"/>
+    <text x="272" y="220" class="sv-ta">WebSocket</text>
+    <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--accent)"/></marker></defs>
+
+    <!-- server -->
+    <rect x="336" y="20" width="220" height="340" rx="12" class="sv-fill" stroke="var(--line2)"/>
+    <text x="352" y="46" class="sv-t">FastAPI · Uvicorn</text>
+    <text x="352" y="63" class="sv-t2">one port, one origin</text>
+    <rect x="352" y="78" width="188" height="40" rx="8" class="sv-acc" stroke="var(--accent)"/>
+    <text x="364" y="103" class="sv-t">Session (in memory)</text>
+    <rect x="352" y="128" width="188" height="40" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="364" y="153" class="sv-t">Stage cache (LRU)</text>
+    <rect x="352" y="178" width="188" height="40" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="364" y="203" class="sv-t">Overlay renderer</text>
+    <rect x="352" y="228" width="188" height="40" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="364" y="253" class="sv-t">Operator registry</text>
+    <rect x="352" y="278" width="188" height="38" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="364" y="302" class="sv-t">Static build (dist/)</text>
+
+    <path d="M556 198 H 616" class="sv-line" marker-end="url(#ar2)"/>
+    <defs><marker id="ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--line2)"/></marker></defs>
+
+    <!-- core -->
+    <rect x="622" y="20" width="264" height="340" rx="12" class="sv-fill" stroke="var(--line2)"/>
+    <text x="638" y="46" class="sv-t">kerbside core — pure Python</text>
+    <text x="638" y="63" class="sv-t2">no web framework imported below this line</text>
+    <rect x="638" y="78" width="232" height="44" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="650" y="98" class="sv-t">geometry/</text>
+    <text x="650" y="113" class="sv-t2">homography · perspective · calibration</text>
+    <rect x="638" y="132" width="232" height="44" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="650" y="152" class="sv-t">operators/</text>
+    <text x="650" y="167" class="sv-t2">point · spatial · frequency · morphology …</text>
+    <rect x="638" y="186" width="232" height="44" rx="8" class="sv-acc" stroke="var(--accent)"/>
+    <text x="650" y="206" class="sv-t">stages/</text>
+    <text x="650" y="221" class="sv-t2">S1 … S9, the production pipeline</text>
+    <rect x="638" y="240" width="232" height="44" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="650" y="260" class="sv-t">data/</text>
+    <text x="650" y="275" class="sv-t2">synthetic renderer · scenarios · degrade</text>
+    <rect x="638" y="294" width="232" height="44" rx="8" class="sv-fill2" stroke="var(--line)"/>
+    <text x="650" y="314" class="sv-t">eval/</text>
+    <text x="650" y="329" class="sv-t2">metrics · analytics · ablation · report</text>
+  </svg>
+  <figcaption>
+    The core knows nothing about HTTP. Every stage is callable from a test or a
+    script with no server running, which is why the ablation studies can be run
+    headless in CI.
+  </figcaption>
+  </figure>
+</section>
+
+<!-- ================================================== 6 · geometry === -->
+<section class="slide" data-title="The geometry">
+  <div class="eyebrow">05<span class="sep"></span>The geometry</div>
+  <h2>Four clicks become a measuring instrument</h2>
+  <div class="cols wide-left">
+    <div>
+      <p>
+        The road is a plane. A pinhole camera maps a plane to a plane by a
+        <strong>homography</strong> — a 3×3 matrix, 8 degrees of freedom, recoverable
+        from four point correspondences.
+      </p>
+      <pre>world (X across, Y along, Z=0 at road)
+        │
+        │  H  (3×3, computed by normalised DLT)
+        ▼
+image  (u, v) in pixels
+
+<b>Solved by hand</b>, not cv2.findHomography:
+  1. Hartley normalisation — centre each point
+     set, scale so mean distance is √2
+  2. Build the 2n×9 matrix A from the cross
+     product constraint x × (H X) = 0
+  3. h = right singular vector of A for the
+     smallest singular value
+  4. Denormalise:  H = T_img⁻¹ · Ĥ · T_world</pre>
+      <p class="small">
+        The normalisation is not cosmetic. Without it the entries of <code>A</code>
+        span pixel values squared against unity, the condition number explodes, and
+        the fit degrades exactly where the perspective is strongest — the far end of
+        the road, which is the part you most want to measure.
+      </p>
+      <div class="chips">
+        <span class="chip ok"><span class="dot"></span>vs closed form: &lt;10⁻⁹ relative</span>
+        <span class="chip ok"><span class="dot"></span>vs OpenCV: agrees to float precision</span>
+      </div>
+    </div>
+    <div>
+      <figure>
+      <svg viewBox="0 0 380 330" role="img" aria-label="Camera and road plane geometry">
+        <!-- horizon -->
+        <line x1="20" y1="70" x2="360" y2="70" stroke="var(--line2)" stroke-dasharray="4 4"/>
+        <text x="24" y="63" class="sv-m">horizon row — never measurable</text>
+        <!-- road -->
+        <path d="M120 70 L20 310 L360 310 L260 70 Z" class="sv-fill2" stroke="var(--line2)"/>
+        <!-- lane line -->
+        <path d="M190 70 L190 310" stroke="var(--line2)" stroke-dasharray="8 10"/>
+        <!-- rectangle clicked -->
+        <path d="M150 150 L232 150 L253 250 L110 250 Z" class="sv-acc" stroke="var(--accent)" stroke-width="1.8"/>
+        <circle cx="150" cy="150" r="4" fill="var(--accent)"/><circle cx="232" cy="150" r="4" fill="var(--accent)"/>
+        <circle cx="253" cy="250" r="4" fill="var(--accent)"/><circle cx="110" cy="250" r="4" fill="var(--accent)"/>
+        <text x="152" y="143" class="sv-ta">known rectangle</text>
+        <text x="188" y="270" class="sv-m" text-anchor="middle">3.5 m</text>
+        <text x="272" y="202" class="sv-m">12 m</text>
+        <!-- scale annotations -->
+        <line x1="330" y1="110" x2="330" y2="130" stroke="var(--ink3)"/>
+        <text x="338" y="124" class="sv-m">1 m ≈ 9 px</text>
+        <line x1="330" y1="270" x2="330" y2="296" stroke="var(--ink3)"/>
+        <text x="300" y="292" class="sv-m" text-anchor="end">1 m ≈ 31 px</text>
+        <text x="20" y="24" class="sv-t">Same metre, different pixel counts</text>
+        <text x="20" y="40" class="sv-t2">every kernel size must be a function of image row</text>
+      </svg>
+      <figcaption>
+        Because scale varies with row, a single global structuring element is
+        wrong everywhere except one line of the image.
+      </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 7 · perspective  -->
+<section class="slide" data-title="Perspective scaling">
+  <div class="eyebrow">06<span class="sep"></span>Perspective scaling</div>
+  <h2>The parameter that is a function, not a constant</h2>
+  <p class="lede">
+    Every size-valued parameter in the pipeline — minimum blob area, closing
+    element, dilation radius, search window — is derived from the homography at
+    the row where it is applied.
+  </p>
+  <div class="cols c2">
+    <div class="card">
+      <h3 style="margin-top:0">Two different scales at the same point</h3>
+      <p class="small">
+        A metre <strong>across the road</strong> and a metre <strong>along the road</strong>
+        project to wildly different pixel counts, because the road recedes and the
+        across-direction does not. At image row 300 on the reference scene:
+      </p>
+      <div class="scroll" style="margin-bottom:0">
+        <table style="min-width:0">
+          <tbody>
+            <tr><td>Across the road</td><td class="n">≈ 25 px/m</td></tr>
+            <tr><td>Along the road</td><td class="n">≈ 4 px/m</td></tr>
+            <tr><td>Vertical (height above road)</td><td class="n">≈ 25 px/m</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card bad">
+      <h3 style="margin-top:0">The bug this caused</h3>
+      <p class="small">
+        The morphological closing that bridges a vehicle's dark window band must be
+        as tall as <strong>the vehicle</strong>, so it scales with the vertical rate —
+        25 px/m. It was originally sized on the along-road rate, 4 px/m, producing an
+        element <strong>two pixels tall</strong>.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        Result: the window band survived, and every vehicle was reported as a roof
+        blob and a bumper blob. It presents as a tracking failure. It is a
+        structuring element that was six times too short.
+      </p>
+    </div>
+  </div>
+  <h3>Elevated planes, for free</h3>
+  <p class="small" style="max-width:80ch">
+    A vehicle roof is not on the road plane, so the road homography does not apply
+    to it. But the homography for a plane at height <em>h</em> above the road follows
+    directly: <code>H_h = H + s·h·(K·r₃)</code> in the third column. That is how the
+    system draws a 3-D bounding box, and how it knows the roof pixel it is looking at
+    is 1.5 m up rather than 8 m further away.
+  </p>
+</section>
+
+<!-- ================================================== 8 · data ======= -->
+<section class="slide" data-title="Data and ground truth">
+  <div class="eyebrow">07<span class="sep"></span>Data and ground truth</div>
+  <h2>Build the world, then measure it</h2>
+  <p class="lede">
+    You cannot report a speed error without knowing the true speed. Hand-labelled
+    video gives you boxes, not velocities. So the project renders its own traffic
+    with a synthetic renderer that <strong>knows every answer exactly</strong>.
+  </p>
+  <div class="cols c2">
+    <div class="card">
+      <h3 style="margin-top:0">What the renderer produces</h3>
+      <ul class="small" style="margin-bottom:0">
+        <li>Vehicles driven by the <strong>Intelligent Driver Model</strong>, so car-following and stop-and-go emerge rather than being scripted.</li>
+        <li>Correct occlusion via painter's-order draw with an <strong>ID buffer</strong>, so the ground truth records what is actually visible, not what exists.</li>
+        <li>Physically-constructed cast shadows: a per-channel multiplicative illuminant, not an additive grey tint.</li>
+        <li>Motion blur by shutter integration restricted to each vehicle's swept region.</li>
+        <li>Camera shake, rain, night lighting, low bit depth, compression.</li>
+      </ul>
+    </div>
+    <div class="card accent">
+      <h3 style="margin-top:0">The ground-truth contract</h3>
+      <p class="small">
+        Per frame, per vehicle: world position, speed, lane, class, colour, the
+        exact visible bounding box, and the visibility fraction.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        <strong>Verified, not asserted:</strong> the renderer's own projection is checked
+        against the calibration recovered from the rendered image to
+        <span class="chip ok" style="vertical-align:baseline">&lt; 10⁻⁶ px</span>
+        against a 1 px gate. If those two disagreed, every error number in this
+        project would be measuring the renderer.
+      </p>
+    </div>
+  </div>
+  <h3>Eight scenarios, each isolating one failure mode</h3>
+  <div class="chips">
+    <span class="chip">free_flow</span><span class="chip">congested</span>
+    <span class="chip">night</span><span class="chip">rain</span>
+    <span class="chip">heavy_occlusion</span><span class="chip">camera_shake</span>
+    <span class="chip">long_shadows</span><span class="chip">motion_blur</span>
+  </div>
+  <p class="small">
+    Real footage is also supported and is used for qualitative checks. Synthetic
+    and real results are <strong>never averaged together</strong>; a number is always
+    labelled with the source that produced it.
+  </p>
+</section>
+
+<!-- ================================================== 9 · pipeline === -->
+<section class="slide" data-title="The nine stages">
+  <div class="eyebrow">08<span class="sep"></span>The pipeline</div>
+  <h2>Nine stages, each one explainable</h2>
+  <div class="flow">
+    <div class="step"><div class="id">S1</div><div class="nm">Ingest</div><div class="u">U1 · U2</div></div>
+    <div class="step"><div class="id">S2</div><div class="nm">Stabilise</div><div class="u">U5</div></div>
+    <div class="step"><div class="id">S3</div><div class="nm">Background</div><div class="u">U3</div></div>
+    <div class="step"><div class="id">S4</div><div class="nm">Foreground</div><div class="u">U7</div></div>
+    <div class="step"><div class="id">S5</div><div class="nm">Shadow</div><div class="u">U2 · U7</div></div>
+  </div>
+  <div class="flow">
+    <div class="step"><div class="id">S6</div><div class="nm">Blobs</div><div class="u">U6 · U7</div></div>
+    <div class="step"><div class="id">S7</div><div class="nm">Track</div><div class="u">U8</div></div>
+    <div class="step"><div class="id">S8</div><div class="nm">Speed</div><div class="u">U8</div></div>
+    <div class="step"><div class="id">S9</div><div class="nm">Classify</div><div class="u">U6 · U2</div></div>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Stage</th><th>What it does</th><th>The decision that mattered</th></tr></thead>
+      <tbody>
+        <tr><td><strong>S1 Ingest</strong></td>
+            <td>Decode, measure the true frame rate from timestamps, report bit depth and codec.</td>
+            <td>The <em>declared</em> fps is not trusted. Speed divides by <code>dt_s</code>; a container claiming 30 fps on 29.97 fps content puts a silent 0.1% bias on every speed.</td></tr>
+        <tr><td><strong>S2 Stabilise</strong></td>
+            <td>Phase correlation against a reference frame, sub-pixel, then shift back.</td>
+            <td>Refined on an <strong>upsampled DFT grid</strong>, not a parabolic fit — see the findings slide. Downsampled first for throughput.</td></tr>
+        <tr><td><strong>S3 Background</strong></td>
+            <td>Running average and temporal median, both written by hand in NumPy, with selective update.</td>
+            <td>MOG2 and KNN exist in the codebase <em>only</em> as a labelled reference baseline in the comparison study. They are never the production path.</td></tr>
+        <tr><td><strong>S4 Foreground</strong></td>
+            <td>Difference, threshold (Otsu / adaptive / fixed), morphological clean-up sized by row.</td>
+            <td>The difference is taken across <strong>colour channels</strong>, not on luma. On greyscale, four of ten body colours are invisible.</td></tr>
+        <tr><td><strong>S5 Shadow</strong></td>
+            <td>HSV test: value ratio in a band, low saturation change, small hue change.</td>
+            <td>The hue condition is gated behind a <strong>saturation floor</strong>, because hue is undefined on neutral asphalt.</td></tr>
+        <tr><td><strong>S6 Blobs</strong></td>
+            <td>Connected components, area gate by expected footprint at that row, watershed split, geometry-driven fragment merge.</td>
+            <td>Both failure directions are handled: a watershed <em>splits</em> merged vehicles, a footprint test <em>merges</em> fragments of one.</td></tr>
+        <tr><td><strong>S7 Track</strong></td>
+            <td>Constant-velocity prediction in <strong>world metres</strong>, greedy nearest-neighbour association, coast through occlusion.</td>
+            <td>Gating in metres, not pixels — a 2 m gate is 2 m everywhere; a 40 px gate is 1.3 m near and 10 m far.</td></tr>
+        <tr><td><strong>S8 Speed</strong></td>
+            <td>Two independent routes, computed for every vehicle and compared.</td>
+            <td>The central experiment of the project. Next slide.</td></tr>
+        <tr><td><strong>S9 Classify</strong></td>
+            <td>Footprint in metres → size band; dominant hue in the vehicle body region → colour name.</td>
+            <td>Colour is sampled from the <em>upper body</em>, excluding the wheel and shadow rows, and only from pixels the mask claims.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="tiny">
+    Every stage carries a machine-readable rationale and its syllabus unit in the
+    operator registry — 35 registered operators across units 1–8 — and the UI shows
+    that text next to the parameter that controls it.
+  </p>
+</section>
+
+<!-- ================================================== 10 · two routes  -->
+<section class="slide" data-title="Two speed routes">
+  <div class="eyebrow">09<span class="sep"></span>The central experiment</div>
+  <h2>Two ways to measure speed, deliberately disagreeing</h2>
+  <p class="lede">
+    Both routes are implemented in full and computed for every vehicle. The point
+    is not to pick a winner in advance; it is to <strong>measure which one is
+    better and be able to explain why</strong>. They are built to fail in
+    <em>independent</em> ways, which is what makes the comparison informative.
+  </p>
+  <div class="cols c2">
+    <div class="card">
+      <div class="chip" style="margin-bottom:9px">Route A &middot; ground point</div>
+      <h3 style="margin-top:0">Difference the ground point through the road homography</h3>
+      <p class="small">
+        Take the bottom-centre of the bounding box &mdash; where the vehicle meets
+        the road, and therefore the only point in the silhouette that genuinely
+        lies on the calibrated plane. Convert two frames to world metres, divide
+        distance by time.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        <strong>Why it survives a known bias:</strong> that point is the vehicle's
+        <em>near extremity</em>, half a length short of its centre. A real bias in
+        position &mdash; but a <strong>constant</strong> one, so it cancels the instant two
+        positions are differenced. An unbiased speed on a biased position.
+      </p>
+    </div>
+    <div class="card good">
+      <div class="chip ok" style="margin-bottom:9px">Route B &middot; block matching</div>
+      <h3 style="margin-top:0">Measure where the texture went</h3>
+      <p class="small">
+        Tile the vehicle's box into blocks, discard the ones with too little
+        texture to say anything, match the rest against the previous frame, take
+        the <strong>median</strong> displacement, and refine it to sub-pixel by phase
+        correlation.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        <strong>The subtlety that decides whether it works:</strong> texture on a
+        vehicle body sits about a metre <em>above</em> the road. Mapping its
+        displacement through the road homography attributes it to the wrong plane,
+        and the error scales with that height, so it never averages away. Using the
+        homography of the plane at that height &mdash; one added term &mdash; removes
+        the bias entirely.
+      </p>
+    </div>
+  </div>
+  <div class="card accent" style="margin-top:14px">
+    <h3 style="margin-top:0">The blob centroid is the naive third option, and it is rejected on geometry</h3>
+    <p class="small" style="margin-bottom:0">
+      The obvious thing is to track the centroid. But a centroid sits in the middle
+      of the visible silhouette, which is <strong>not on the road plane</strong>, so the
+      road homography does not apply to it at all. Its error grows with distance and
+      with vehicle height &mdash; correlation 0.85 &mdash; which never looks like a bug.
+      It looks like trucks genuinely reading differently from cars. The centroid is
+      computed and used for association; it is never used for speed.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 11 · console === -->
+<section class="slide" data-title="The console">
+  <div class="eyebrow">10<span class="sep"></span>The interface</div>
+  <h2>An instrument, not a demo page</h2>
+  <p class="lede">
+    The UI exists so that a claim about the pipeline can be checked by looking,
+    in one action. Every parameter is live; every stage output is inspectable.
+  </p>
+  <div class="cols c3">
+    <div class="card"><h3 style="margin-top:0">Live console</h3>
+      <p class="small" style="margin:0">Video with toggleable overlays — boxes, ground points, world trails, lane
+      polygons, counting lines, mask, shadow, blobs. Counts and per-track numbers update per frame over the WebSocket.</p></div>
+    <div class="card"><h3 style="margin-top:0">Calibration</h3>
+      <p class="small" style="margin:0">Click four points, get a reprojection RMSE, the implied camera height and tilt,
+      and a plausibility verdict. A metre grid is drawn back onto the road so a wrong calibration is visible, not just a bad number.</p></div>
+    <div class="card"><h3 style="margin-top:0">Pipeline inspector</h3>
+      <p class="small" style="margin:0">Every stage's intermediate image, its timing, its metrics, its rationale
+      and its syllabus unit. Change a parameter, see which stages re-ran.</p></div>
+    <div class="card"><h3 style="margin-top:0">Shadow lab</h3>
+      <p class="small" style="margin:0">The HSV test decomposed into its three conditions, each visualised separately,
+      scored against a shadow-free render of the identical scene.</p></div>
+    <div class="card"><h3 style="margin-top:0">Motion lab</h3>
+      <p class="small" style="margin:0">Block matching search strategies side by side: comparison count, PSNR of the
+      predicted frame, and vector error against truth — the three numbers that show why cheap and accurate are different goals.</p></div>
+    <div class="card"><h3 style="margin-top:0">Ablation lab &amp; report</h3>
+      <p class="small" style="margin:0">Nine studies runnable from the browser, each with its question stated up front.
+      One button emits a self-contained HTML report with every parameter embedded.</p></div>
+  </div>
+  <p class="small" style="margin-top:14px">
+    Design constraints that were enforced rather than aspired to: every number is
+    monospace with tabular figures; every colour is a CSS custom property so light
+    and dark are one token file; the parameter rail is generated from the backend's
+    operator registry, so a new operator appears in the UI without a UI change.
+  </p>
+</section>
+
+<!-- ================================================== 12 · phases ==== -->
+<section class="slide" data-title="Build phases">
+  <div class="eyebrow">11<span class="sep"></span>Method</div>
+  <h2>Eight phases, each with a gate</h2>
+  <p class="lede">
+    A phase does not close because the code runs. It closes because a stated,
+    measurable criterion is met — or it is recorded as not met and the reason is
+    given.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Phase</th><th>Deliverable</th><th>Gate</th><th class="n">Status</th></tr></thead>
+      <tbody>
+        <tr><td><strong>1</strong> Geometry &amp; data</td><td>Homography, calibration, synthetic renderer, ground truth</td>
+            <td>Round-trip projection error under 1 px</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>2</strong> Operators</td><td>35 hand-written operators, units 1–8</td>
+            <td>Each asserted against a closed form or an OpenCV oracle</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>3</strong> Detection</td><td>S1–S6, mask to blobs</td>
+            <td>≥ 98% per-frame blob-count agreement</td><td class="n"><span class="chip bad">not met — 25%</span></td></tr>
+        <tr><td><strong>4</strong> Tracking &amp; measurement</td><td>S7–S9, counts, speeds, lanes, classes</td>
+            <td>Both routes measured against truth, difference explained</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>5</strong> API</td><td>REST, MJPEG, WebSocket, stage cache</td>
+            <td>Every endpoint exercised end to end</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>6</strong> Console</td><td>Eight views, live parameters, overlays</td>
+            <td>Every pipeline claim checkable by looking</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>7</strong> Studies</td><td>Nine ablations, analytics, report</td>
+            <td>Each study answers a stated question</td><td class="n"><span class="chip ok">passed</span></td></tr>
+        <tr><td><strong>8</strong> Hardening</td><td>Tests, typing, lint, documentation</td>
+            <td>Suite green, mypy strict, ruff clean</td><td class="n"><span class="chip ok">passed</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card warn">
+    <h3 style="margin-top:0">Why Phase 3 is reported as failed rather than re-scoped</h3>
+    <p class="small" style="margin:0">
+      The 98% gate was set before any code was written, and it was set high on
+      purpose. Lowering it after the fact would have made the number meaningless.
+      What the failure produced instead is the most useful diagnostic work in the
+      project — the identification of fragmentation, not shadow, as the binding
+      constraint. That is on the results slide, with the experiment that proved it.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 13 · results 1 = -->
+<section class="slide" data-title="Results — geometry">
+  <div class="eyebrow">12<span class="sep"></span>Results · geometry and operators</div>
+  <h2>The foundation is exact</h2>
+  <div class="cols c4" style="margin-bottom:16px">
+    <div class="stat"><div class="k">GT contract</div><div class="v ok">&lt;10⁻⁶<span class="u">px</span></div><div class="n">gate was 1 px</div></div>
+    <div class="stat"><div class="k">DLT vs closed form</div><div class="v ok">&lt;10⁻⁹</div><div class="n">relative</div></div>
+    <div class="stat"><div class="k">Distance, 18–60 m</div><div class="v ok">&lt;2<span class="u">%</span></div><div class="n">sub-pixel clicks</div></div>
+    <div class="stat"><div class="k">Operator coverage</div><div class="v acc">84<span class="u">%</span></div><div class="n">tests on operators/</div></div>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Study</th><th class="n">Result</th></tr></thead>
+      <tbody>
+        <tr><td>Hand-written correlation vs OpenCV (float input)</td><td class="n">&lt; 10⁻³ max difference</td></tr>
+        <tr><td>Canny vs OpenCV — real frame / synthetic diagonal</td><td class="n">IoU 0.86 / 0.97</td></tr>
+        <tr><td>Phase correlation — integer / sub-pixel shift</td><td class="n">&lt; 0.05 / &lt; 0.1 px</td></tr>
+        <tr><td>Phase correlation under a 1.4× brightness change</td><td class="n">&lt; 0.2 px</td></tr>
+        <tr><td>Energy compaction at 4 of 64 coefficients</td><td class="n">DCT 0.996 &gt; Hadamard 0.994 &gt; DFT 0.991</td></tr>
+        <tr><td>Block matching, exhaustive, on real content</td><td class="n">0.32 px MAE · 96% exact</td></tr>
+        <tr><td>Fast searches vs exhaustive — comparison count</td><td class="n">36× / 32× fewer</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card accent">
+    <p class="small" style="margin:0">
+      <strong>Read the block-matching rows together.</strong> The fast searches are
+      thirty-odd times cheaper and still predict the frame at 35 dB — perfectly
+      adequate for a video codec. They also land about five pixels from the true
+      vector, which is not adequate for a speed measurement. The same algorithm is a
+      good choice for one job and a bad one for the other. <strong>That distinction is
+      the finding, not a caveat.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 14 · results 2 = -->
+<section class="slide" data-title="Results — detection">
+  <div class="eyebrow">13<span class="sep"></span>Results · detection</div>
+  <h2>Phase 3: the gate was not met</h2>
+  <p class="lede">
+    Measured on the free-flow clip over an 18–80 m working range, vehicles of at
+    least 300 visible pixels, background warm-up excluded.
+  </p>
+  <div class="cols c4" style="margin-bottom:16px">
+    <div class="stat"><div class="k">Frame count agreement</div><div class="v bad">25.0<span class="u">%</span></div><div class="n">target ≥ 98%</div></div>
+    <div class="stat"><div class="k">Recall</div><div class="v warn">0.83</div><div class="n">per vehicle</div></div>
+    <div class="stat"><div class="k">Precision</div><div class="v warn">0.82</div><div class="n">per vehicle</div></div>
+    <div class="stat"><div class="k">Throughput at 720p</div><div class="v bad">4.0<span class="u">fps</span></div><div class="n">target ≥ 15 fps</div></div>
+  </div>
+  <div class="cols c2">
+    <div class="card bad">
+      <h3 style="margin-top:0">The limiting failure is fragmentation, not shadow</h3>
+      <p class="small">
+        A vehicle whose dark window band survives thresholding arrives as two
+        components. Counting them separately fails a count comparison in exactly the
+        same way a missed vehicle does. <strong>144 split events against 38 merges.</strong>
+      </p>
+      <p class="small" style="margin-bottom:0">
+        A geometry-driven fragment merge in S6 — components that fit inside one
+        plausible vehicle silhouette are joined — halved the splits to 87 and lifted
+        recall to 0.83. The gate is still far off.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">How that was proven rather than assumed</h3>
+      <p class="small">
+        Shadow suppression itself is working: it removes
+        <strong>87–97% of true shadow pixels</strong>, scored against two renders identical
+        but for <code>cast_shadows</code>.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        The decisive experiment was an oracle: rendering the scene with
+        <strong>no shadows at all</strong> barely moved frame agreement. If shadow were the
+        constraint, removing it perfectly would have fixed the number. It did not.
+        That is how fragmentation was identified as the real constraint instead of
+        being guessed at.
+      </p>
+    </div>
+  </div>
+  <p class="small">
+    <strong>Throughput</strong> was raised from 1.28 fps to 4.0 fps by profiling —
+    <code>scipy.ndimage.find_objects</code> in place of a NumPy scatter costing 23 ms
+    per call, flood-fill hole filling in place of iterated geodesic reconstruction,
+    bounding-box component extraction, float32 through the mask stages, and
+    downsampling in S2. It remains below target and is reported as such.
+  </p>
+</section>
+
+<!-- ================================================== 15 · results 3 = -->
+<section class="slide" data-title="Results — measurement">
+  <div class="eyebrow">14<span class="sep"></span>Results &middot; end-to-end measurement</div>
+  <h2>Phase 4: the routes disagree, and the reason is the mask</h2>
+  <p class="lede">Free-flow scenario, 12 seconds, against exact ground truth.</p>
+  <div class="cols c4" style="margin-bottom:14px">
+    <div class="stat"><div class="k">Count accuracy</div><div class="v ok">90.9<span class="u">%</span></div><div class="n">12 counted, 11 expected</div></div>
+    <div class="stat"><div class="k">Lane assignment</div><div class="v ok">81<span class="u">%</span></div><div class="n">correct lane</div></div>
+    <div class="stat"><div class="k">Size class</div><div class="v warn">52<span class="u">%</span></div><div class="n">downstream of the mask</div></div>
+    <div class="stat"><div class="k">Route B advantage</div><div class="v acc">2.1&times;</div><div class="n">lower MAE than Route A</div></div>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Speed route</th><th class="n">MAE (km/h)</th><th class="n">Bias (km/h)</th><th>Interpretation</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Route A</strong> &mdash; ground point</td><td class="n">19.5</td><td class="n">&minus;14.35</td>
+            <td>Large systematic under-read. Every error in the silhouette moves the ground point, and moves it the same way for as long as the cause persists.</td></tr>
+        <tr><td><strong>Route B</strong> &mdash; block matching</td><td class="n">9.4</td><td class="n">&minus;3.88</td>
+            <td>Less than half the error and a quarter of the bias, on the same tracks and the same calibration.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cols c2">
+    <div class="card good">
+      <h3 style="margin-top:0">Why the mask-independent route wins &mdash; and why that is consistent</h3>
+      <p class="small" style="margin:0">
+        Route A's position is defined by the <em>edge of the mask</em>. Phase 3
+        established that this mask under-covers the vehicle rear and fragments. A
+        short mask shortens the measured displacement, which under-reads the speed
+        &mdash; the &minus;14.35 km/h bias is exactly that, measured. Route B never
+        touches the mask boundary; it matches texture inside the box.
+        <strong>Two methods built to fail differently point at the same defect</strong>,
+        which is the strongest evidence in the project that segmentation, not
+        measurement, is the binding constraint.
+      </p>
+    </div>
+    <div class="card warn">
+      <h3 style="margin-top:0">Route B's residual is structural, not a tuning problem</h3>
+      <p class="small" style="margin:0">
+        A parameter sweep over the smoothing window and gain moved Route B's MAE
+        between 9.4 and 9.6 km/h &mdash; essentially flat. The remaining &minus;3.9 km/h
+        is not reachable from S8; it has to be fixed at S4&ndash;S6, where the mask is
+        made. <strong>The flat sweep is the result.</strong> Tuning until a number looked
+        better would have hidden it.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 16 · finding 1 = -->
+<section class="slide" data-title="Finding — colour">
+  <div class="eyebrow">15<span class="sep"></span>Finding</div>
+  <h2>A greyscale background subtraction cannot see a red vehicle</h2>
+  <div class="cols wide-right">
+    <div>
+      <p class="small">
+        BT.601 weights red at 0.299. On this project's own vehicle palette against
+        its own asphalt, a red body differs from the road by
+        <strong>1.2 grey levels</strong> — and by <strong>94 in its red channel</strong>.
+      </p>
+      <p class="small">
+        Four of ten body colours were not merely hard to detect but
+        <strong>invisible</strong>. The mask held their shadow and not them, which
+        presents as a shadow problem and is a colour problem introduced two stages
+        earlier.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        The difference is now taken across colour channels
+        (<code>difference_mode = max_channel</code>). The greyscale mode is kept in
+        the codebase as the baseline that demonstrates why.
+      </p>
+    </div>
+    <div class="scroll" style="margin:0">
+      <table style="min-width:0">
+        <thead><tr><th>Body colour</th><th class="n">Luma Δ</th><th class="n">Max channel Δ</th></tr></thead>
+        <tbody>
+          <tr><td>red</td><td class="n" style="color:var(--bad)">1.2</td><td class="n" style="color:var(--ok)">94.0</td></tr>
+          <tr><td>blue</td><td class="n" style="color:var(--bad)">4.2</td><td class="n" style="color:var(--ok)">68.0</td></tr>
+          <tr><td>brown</td><td class="n" style="color:var(--bad)">4.6</td><td class="n" style="color:var(--ok)">30.0</td></tr>
+          <tr><td>green</td><td class="n" style="color:var(--bad)">9.1</td><td class="n" style="color:var(--ok)">34.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card accent" style="margin-top:14px">
+    <p class="small" style="margin:0">
+      This is the general shape of most of the findings in this project: a symptom
+      that appears at one stage, caused by a decision taken two stages earlier, and
+      only diagnosable because every intermediate is inspectable and the ground truth
+      is exact.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================== 17 · finding 2 = -->
+<section class="slide" data-title="Finding — hue &amp; sub-pixel">
+  <div class="eyebrow">16<span class="sep"></span>Findings</div>
+  <h2>Two textbook methods that fail on their stated assumptions</h2>
+  <div class="cols c2">
+    <div class="card">
+      <h3 style="margin-top:0">Hue is undefined where saturation is near zero — and asphalt is neutral</h3>
+      <p class="small">
+        At a background saturation of about 0.075, the hue difference across
+        foreground pixels has a median of 10 and a 95th percentile of 67. That is not
+        a measurement of colour; it is the arctangent of two small noisy differences.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        Applying the textbook 10-unit hue tolerance there rejects
+        <strong>half of a correctly identified shadow</strong>. The hue condition is now
+        enforced only above a saturation floor.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Sub-pixel phase correlation needs more than a parabolic fit</h3>
+      <p class="small">
+        For a fractional shift, the inverse transform of a pure phase ramp is a
+        periodic sinc whose side lobes alternate in sign. Fitting a parabola through
+        the peak and its two neighbours is fitting a parabola to something that is not
+        remotely parabolic.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        It lands about <strong>a pixel out</strong> — and OpenCV's
+        <code>phaseCorrelate</code> has the same problem, measured. Refining on an
+        <strong>upsampled DFT grid</strong> brings it under a tenth of a pixel.
+      </p>
+    </div>
+  </div>
+  <div class="cols c2" style="margin-top:14px">
+    <div class="card">
+      <h3 style="margin-top:0">m-connectivity and 8-connectivity always give identical components</h3>
+      <p class="small" style="margin-bottom:0">
+        Provable, and asserted over random masks. What m-connectivity changes is the
+        <strong>uniqueness of the path</strong>, which matters for boundary following —
+        not the set of components, which is what most write-ups imply.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">A block matcher's sign convention is not a detail</h3>
+      <p class="small" style="margin-bottom:0">
+        A codec's motion vector is the negation of the content displacement. Reported
+        the codec way, it would have silently disagreed with phase correlation on
+        every frame. The API now returns content displacement and offers the codec
+        form explicitly.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 18 · ablations = -->
+<section class="slide" data-title="Ablation studies">
+  <div class="eyebrow">17<span class="sep"></span>Studies</div>
+  <h2>Nine questions, each answered by a runnable experiment</h2>
+  <p class="lede">
+    Each ablation states its question before it runs, varies exactly one axis, and
+    reports the same metric set. They are runnable from the browser and headless in
+    CI.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Study</th><th>The question it answers</th></tr></thead>
+      <tbody>
+        <tr><td>Background model</td><td>Running average vs temporal median vs (labelled baseline) MOG2 — which survives a stopped vehicle?</td></tr>
+        <tr><td>Difference mode</td><td>Greyscale vs max-channel — how much detection is lost to luma weighting?</td></tr>
+        <tr><td>Thresholding</td><td>Otsu vs adaptive vs fixed, under changing illumination.</td></tr>
+        <tr><td>Shadow suppression</td><td>On vs off vs each HSV condition alone — which condition does the work?</td></tr>
+        <tr><td>Morphology sizing</td><td>Fixed element vs perspective-scaled — the six-times-too-short experiment, quantified.</td></tr>
+        <tr><td>Blob splitting</td><td>Watershed on vs off, under heavy occlusion.</td></tr>
+        <tr><td>Speed route</td><td>Centroid vs ground point vs block matching — the central experiment.</td></tr>
+        <tr><td>Stabilisation</td><td>On vs off, on the camera-shake scenario.</td></tr>
+        <tr><td>Search strategy</td><td>Exhaustive vs 2-D log vs three-step — cost, PSNR, and vector error, separately.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">
+    Results are presented as a table with a delta against the baseline row, so an
+    improvement and a regression are equally visible. No study is reported without
+    the parameter set that produced it.
+  </p>
+</section>
+
+<!-- ================================================== 19 · syllabus == -->
+<section class="slide" data-title="Syllabus mapping">
+  <div class="eyebrow">18<span class="sep"></span>Coverage</div>
+  <h2>Where each unit does real work</h2>
+  <p class="lede">
+    Nothing is included for coverage alone. Each unit is listed with the place it
+    is load-bearing in the pipeline.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="n">Unit</th><th>Topic</th><th>Where it carries weight</th></tr></thead>
+      <tbody>
+        <tr><td class="n">1</td><td>Digital image fundamentals, sampling, quantisation</td><td>S1 ingest — bit depth, true frame rate, the pixel-to-metre question itself</td></tr>
+        <tr><td class="n">2</td><td>Intensity transforms, histograms, colour models</td><td>S5 HSV shadow test, S9 colour naming, night-scene contrast handling</td></tr>
+        <tr><td class="n">3</td><td>Spatial filtering, smoothing, sharpening</td><td>S3 background modelling and noise suppression before differencing</td></tr>
+        <tr><td class="n">4</td><td>Frequency domain, DFT, DCT, filtering</td><td>Periodic-interference removal, energy-compaction study, notch design</td></tr>
+        <tr><td class="n">5</td><td>Restoration, degradation models</td><td>S2 stabilisation via phase correlation; the degradation harness</td></tr>
+        <tr><td class="n">6</td><td>Morphology, connected components</td><td>S6 — the stage the whole measurement rests on</td></tr>
+        <tr><td class="n">7</td><td>Segmentation, thresholding, edges, watershed</td><td>S4 Otsu and adaptive thresholding, S6 watershed splitting, Canny</td></tr>
+        <tr><td class="n">8</td><td>Video processing, motion estimation, compression</td><td>S7–S8 tracking and speed; block matching and the codec-vs-measurement study</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">
+    The operator registry records the unit for every one of the 35 operators, and
+    the console surfaces it next to the control — so the mapping is a property of the
+    running system, not a table written afterwards.
+  </p>
+</section>
+
+<!-- ================================================== 20 · limits ==== -->
+<section class="slide" data-title="Limitations">
+  <div class="eyebrow">19<span class="sep"></span>Limitations and ethics</div>
+  <h2>What this system is not</h2>
+  <div class="cols c2">
+    <div class="card bad">
+      <h3 style="margin-top:0">Not a speed enforcement device</h3>
+      <p class="small">
+        The system measures speed. It never asserts legal accuracy, never issues a
+        violation, and has no evidentiary standing. Over-limit rows are labelled
+        <strong>"flagged for review"</strong> everywhere they appear — in the UI, the
+        API and the generated report.
+      </p>
+      <p class="small" style="margin-bottom:0">
+        A legally admissible speed device requires type approval and calibration
+        certification that this project does not have and does not claim.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">No personal data, by construction</h3>
+      <p class="small" style="margin-bottom:0">
+        Number plates and faces are never read, stored, or recognised. The only
+        privacy feature in the codebase is <strong>blurring</strong>; there is no
+        recognition capability to disable, because none was written.
+      </p>
+    </div>
+    <div class="card warn">
+      <h3 style="margin-top:0">Known technical limits</h3>
+      <ul class="small" style="margin-bottom:0">
+        <li>4.0 fps at 720p, against a 15 fps target.</li>
+        <li>25% frame count agreement, against a 98% gate.</li>
+        <li>Class accuracy 52%, because footprint is downstream of a mask that fragments.</li>
+        <li>Requires a fixed camera and a flat road; both are assumptions of the homography, not of the code.</li>
+        <li>Calibration quality bounds everything. A 2% distance error is a 2% speed error, permanently.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">What I would do next</h3>
+      <ul class="small" style="margin-bottom:0">
+        <li>Attack fragmentation at S4 with a colour-consistency region grow seeded from the mask, rather than patching at S6.</li>
+        <li>Vectorise the per-row morphology into banded strips to close the throughput gap.</li>
+        <li>Extend the ground-truth comparison to the occlusion and night scenarios, which are currently qualitative only.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================== 21 · close ===== -->
+<section class="slide" data-title="Summary">
+  <div class="eyebrow">20<span class="sep"></span>In summary</div>
+  <h2>What this project demonstrates</h2>
+  <div class="cols c2">
+    <div class="card accent">
+      <h3 style="margin-top:0">Geometry can do a detector's job</h3>
+      <p class="small" style="margin:0">A calibrated homography turns classification into arithmetic on metres,
+      and turns a tracked blob into a physical speed. No training data appears anywhere.</p>
+    </div>
+    <div class="card accent">
+      <h3 style="margin-top:0">Two independent routes agreed on the root cause</h3>
+      <p class="small" style="margin:0">The mask-dependent route under-reads by 14 km/h; the mask-independent one by
+      4. Two methods built to fail differently pointing at the same defect is what turns a number into a diagnosis.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Textbook methods were tested, not assumed</h3>
+      <p class="small" style="margin:0">Greyscale differencing, the hue tolerance, the parabolic sub-pixel fit and
+      the fixed structuring element each failed on their own stated assumptions, and each failure is documented with the measurement that caught it.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">A missed target is reported as a missed target</h3>
+      <p class="small" style="margin:0">Phase 3's gate was not met. The diagnostic work that followed —
+      the shadow-free oracle experiment — is more informative than a met gate would have been.</p>
+    </div>
+  </div>
+  <hr>
+  <p class="small" style="max-width:78ch">
+    Every number on these slides is produced by a test or a script in the repository
+    and can be regenerated from the source video and the recorded parameter set. The
+    console can reproduce any of them interactively, and the report button emits a
+    self-contained HTML file with the full parameter state embedded.
+  </p>
+  <p class="tiny">
+    Kerbside · Image and Video Processing · classical digital image processing only ·
+    not an enforcement device
+  </p>
+</section>
+
+</main>
+
+<div id="nav-arrows">
+  <button class="btn" id="prev" aria-label="Previous slide">‹</button>
+  <button class="btn" id="next" aria-label="Next slide">›</button>
+</div>
+
+<div class="hint" id="hint">Swipe or tap the edges · ← → keys · <b>Read</b> for one long page</div>
+
+<script>
+(function(){
+  "use strict";
+  var deck    = document.getElementById('deck');
+  var slides  = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var countEl = document.getElementById('count');
+  var barEl   = document.getElementById('progress');
+  var tocEl   = document.getElementById('toc');
+  var listEl  = document.getElementById('toclist');
+  var hintEl  = document.getElementById('hint');
+  var i = 0, readMode = false;
+
+  /* ---------------------------------------------------------- contents */
+  slides.forEach(function(s, n){
+    var b = document.createElement('button');
+    b.innerHTML = '<span class="i">' + String(n + 1).padStart(2, '0') + '</span><span>' +
+                  (s.getAttribute('data-title') || ('Slide ' + (n + 1))) + '</span>';
+    b.addEventListener('click', function(){ go(n); closeToc(); });
+    listEl.appendChild(b);
+  });
+  var tocButtons = Array.prototype.slice.call(listEl.querySelectorAll('button'));
+
+  /* ------------------------------------------------------------- state */
+  function paint(){
+    countEl.textContent = (i + 1) + ' / ' + slides.length;
+    barEl.style.width = (slides.length < 2 ? 100 : (i / (slides.length - 1)) * 100) + '%';
+    tocButtons.forEach(function(b, n){ b.classList.toggle('cur', n === i); });
+    try { location.hash = 's' + (i + 1); } catch (e) {}
+  }
+
+  function go(n){
+    if (n < 0 || n >= slides.length) return;
+    i = n;
+    if (readMode) {
+      slides[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
+      window.scrollTo(0, 0);
+    }
+    paint();
+    hide(hintEl);
+  }
+  function nextS(){ go(Math.min(i + 1, slides.length - 1)); }
+  function prevS(){ go(Math.max(i - 1, 0)); }
+
+  function hide(el){ if (el && !el.classList.contains('gone')) el.classList.add('gone'); }
+  setTimeout(function(){ hide(hintEl); }, 6000);
+
+  /* -------------------------------------------------------- read mode */
+  function setRead(on){
+    readMode = on;
+    document.body.classList.toggle('read', on);
+    var btn = document.getElementById('mode');
+    btn.textContent = on ? 'Slides' : 'Read';
+    btn.classList.toggle('on', on);
+    if (on) {
+      slides.forEach(function(s){ s.classList.add('on'); });
+      slides[i].scrollIntoView({ block: 'start' });
+    } else {
+      slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
+      window.scrollTo(0, 0);
+    }
+    try { localStorage.setItem('kerbside.read', on ? '1' : '0'); } catch (e) {}
+  }
+
+  /* ------------------------------------------------------------ theme */
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    document.querySelector('meta[name=theme-color]').setAttribute(
+      'content', t === 'dark' ? '#0b0f14' : '#ffffff');
+    document.getElementById('theme').classList.toggle('on', t === 'dark');
+    try { localStorage.setItem('kerbside.theme', t); } catch (e) {}
+  }
+
+  /* --------------------------------------------------------- controls */
+  document.getElementById('next').addEventListener('click', nextS);
+  document.getElementById('prev').addEventListener('click', prevS);
+  document.getElementById('tapR').addEventListener('click', nextS);
+  document.getElementById('tapL').addEventListener('click', prevS);
+  document.getElementById('mode').addEventListener('click', function(){ setRead(!readMode); });
+  document.getElementById('theme').addEventListener('click', function(){
+    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  function openToc(){ tocEl.classList.add('open'); }
+  function closeToc(){ tocEl.classList.remove('open'); }
+  document.getElementById('menu').addEventListener('click', openToc);
+  tocEl.querySelector('.scrim').addEventListener('click', closeToc);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { nextS(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { prevS(); e.preventDefault(); }
+    else if (e.key === 'Home') { go(0); }
+    else if (e.key === 'End') { go(slides.length - 1); }
+    else if (e.key === 'Escape') { closeToc(); }
+    else if (e.key === 'r' || e.key === 'R') { setRead(!readMode); }
+    else if (e.key === 'd' || e.key === 'D') {
+      setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    }
+  });
+
+  /* ---------------------------------- swipe (iPad / phone), slide mode */
+  var x0 = null, y0 = null, t0 = 0;
+  document.addEventListener('touchstart', function(e){
+    if (readMode || e.touches.length !== 1) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+  }, { passive: true });
+  document.addEventListener('touchend', function(e){
+    if (readMode || x0 === null) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    // Horizontal, decisive, and quick — otherwise it was a scroll or a tap.
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8 && Date.now() - t0 < 800) {
+      if (dx < 0) nextS(); else prevS();
+    }
+  }, { passive: true });
+
+  /* ------------------------------- read mode: track the visible slide */
+  window.addEventListener('scroll', function(){
+    if (!readMode) return;
+    var best = 0, bestTop = Infinity;
+    slides.forEach(function(s, n){
+      var top = Math.abs(s.getBoundingClientRect().top - 60);
+      if (top < bestTop) { bestTop = top; best = n; }
+    });
+    if (best !== i) { i = best; paint(); }
+  }, { passive: true });
+
+  /* -------------------------------------------------------- restore */
+  try {
+    var savedTheme = localStorage.getItem('kerbside.theme');
+    if (savedTheme) setTheme(savedTheme);
+    else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark');
+  } catch (e) {}
+
+  var m = /^#s(\d+)$/.exec(location.hash || '');
+  if (m) { var n = parseInt(m[1], 10) - 1; if (n >= 0 && n < slides.length) i = n; }
+  slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
+  paint();
+
+  try { if (localStorage.getItem('kerbside.read') === '1') setRead(true); } catch (e) {}
+})();
+</script>
+</body>
+</html>
