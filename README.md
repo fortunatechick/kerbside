@@ -13,7 +13,7 @@ decades before deep learning, and what many still do.
 > All nine stages, the REST/MJPEG/WebSocket API, the operations console, the
 > nine ablation studies and the self-contained HTML report are built and
 > running; `python run_kerbside.py --scenario free_flow --open` starts the whole
-> thing on one port. 273 tests pass, `ruff` is clean and `mypy --strict` is clean
+> thing on one port. 279 tests pass, `ruff` is clean and `mypy --strict` is clean
 > over `core/`, `geometry/` and `operators/`.
 >
 > **Phase 3's accuracy gate was not met and has not been rewritten to fit.**
@@ -185,6 +185,22 @@ All figures below come from `tests/`, on synthetic data with exact ground truth.
 | Homography from four **exact** clicks | < 1e-9 relative — criterion met |
 | Homography from four **half-pixel** clicks, 18–60 m | median and 95th percentile both < 2% — criterion met |
 | Homography from four **whole-pixel** clicks, 18–60 m | ~1.2% median, tail past 2% |
+
+### The constraints are tested, not just stated
+
+"No machine learning anywhere in the pipeline" is a property of every line in
+`backend/kerbside/`, and "same video and parameters give identical output" is a
+property of a run rather than of any function. Neither is the kind of claim a
+reader can verify by looking at one file, so `tests/test_constraints.py` parses
+every module in the package and asserts that nothing imports a learning
+framework and nothing calls a pretrained detector, then runs the whole pipeline
+twice and requires the two results to be identical down to each track's speed.
+
+The single permitted exception is OpenCV's mixture-of-Gaussians background
+subtractor, which the comparison study needs so the hand-written models can be
+*measured* against a standard implementation rather than merely asserted to be
+competent. It is pinned by test to one file and one clearly-labelled option, and
+it is never the default.
 
 ## The operator library
 

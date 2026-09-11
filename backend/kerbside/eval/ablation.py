@@ -73,11 +73,16 @@ ABLATIONS: dict[str, AblationPreset] = {
         label="Background model",
         question=(
             "Running average, temporal median or three-frame difference - which "
-            "counts most accurately, and which ghosts?"
+            "counts most accurately, and which ghosts? And do the hand-written "
+            "models hold up against OpenCV's MOG2, included here as a labelled "
+            "reference baseline and nowhere else?"
         ),
         stage_id="s3_background",
         param="model",
-        values=("running_average", "temporal_median", "three_frame", "reference"),
+        values=(
+            "running_average", "temporal_median", "three_frame", "reference",
+            "mog2_baseline",
+        ),
     ),
     "alpha": AblationPreset(
         key="alpha",

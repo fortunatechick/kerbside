@@ -3,8 +3,15 @@
 The scene is mostly road. If you knew what the empty road looked like, anything
 differing from it would be a vehicle. Building that reference from the video
 itself is background modelling, and this module implements three ways to do it
-with NumPy - which is the point of the exercise. OpenCV's MOG2 and KNN appear
-only in the comparison study, clearly labelled, never on the production path.
+with NumPy - which is the point of the exercise.
+
+OpenCV's MOG2 is here too, as the ``mog2_baseline`` model, and it is the single
+exception: a reference implementation the hand-written models are measured
+against in the comparison study. It is clearly labelled, it is never the
+default, and no figure reported as this project's own result is produced with
+it. Without it the background study would compare three hand-written models
+against each other and prove nothing about whether hand-writing them was
+competent.
 
 **Running average** is the whole of Unit 2 applied along time instead of space:
 
@@ -71,7 +78,9 @@ from kerbside.stages.base import FrameContext, Stage, StageError
 
 __all__ = ["BackgroundStage", "BackgroundModel"]
 
-BackgroundModel = Literal["running_average", "temporal_median", "three_frame", "reference"]
+BackgroundModel = Literal[
+    "running_average", "temporal_median", "three_frame", "reference", "mog2_baseline"
+]
 DifferenceMode = Literal["max_channel", "euclidean", "grey"]
 
 
@@ -95,7 +104,17 @@ class BackgroundStage(Stage):
     param_specs = (
         ParamSpec(
             "model", "Model", "enum", "running_average",
-            choices=("running_average", "temporal_median", "three_frame", "reference"),
+            choices=(
+                "running_average", "temporal_median", "three_frame", "reference",
+                "mog2_baseline",
+            ),
+            description=(
+                "The first four are written by hand in NumPy and are the "
+                "point of the exercise. mog2_baseline is OpenCV's Gaussian "
+                "mixture subtractor, present ONLY as a reference to measure "
+                "the hand-written models against - it is never the default "
+                "and no result reported as this project's own uses it."
+            ),
         ),
         ParamSpec(
             "difference_mode", "Difference", "enum", "max_channel",
@@ -175,6 +194,31 @@ class BackgroundStage(Stage):
         self._previous_grey = None
         self._last_mask = None
         self._frames_seen = 0
+        self._mog2 = None
+
+    def _mog2_baseline_difference(self, bgr: FloatArray) -> FloatArray:
+        """OpenCV's MOG2, as a **reference baseline only**.
+
+        This is the one place in the codebase where a background model is not
+        written by hand, and it exists so the hand-written ones can be measured
+        against the standard implementation rather than merely asserted to be
+        competent. It is never the default, the comparison study labels it, and
+        no figure reported as this project's own result is produced with it.
+
+        MOG2 returns a mask, not a background image, so its output is scaled to
+        the same 0-255 range the hand-written difference produces. That keeps
+        every downstream threshold comparable across models, which is the only
+        way the comparison means anything - a baseline scored on a different
+        scale would be measuring the scale.
+        """
+        if self._mog2 is None:
+            self._mog2 = cv2.createBackgroundSubtractorMOG2(
+                history=int(1.0 / max(float(self.param("alpha")), 1e-6)),
+                varThreshold=16.0,
+                detectShadows=False,
+            )
+        mask = self._mog2.apply(bgr.astype(np.uint8))
+        return np.asarray(mask, dtype=np.float32)
 
     def note_mask(self, mask: BoolArray | None) -> None:
         """Record the mask the pipeline settled on for the frame just finished.
@@ -301,6 +345,12 @@ class BackgroundStage(Stage):
                 self._update_running_average(grey, bgr, frozen)
                 assert self._grey is not None and self._bgr is not None
                 difference = self._difference(bgr, self._bgr, grey)
+            elif model == "mog2_baseline":
+                # Reference baseline only. See the note on the class.
+                difference = self._mog2_baseline_difference(bgr)
+                result.metrics["reference_baseline"] = 1.0
+                if self._grey is None or self._bgr is None:
+                    self._grey, self._bgr = grey.copy(), bgr.copy()
             elif model == "reference":
                 # A fixed first frame. Only correct when the clip genuinely
                 # opens on an empty road, which is why it is not the default -

@@ -11,13 +11,21 @@ the interface is the primary evidence that the techniques work, not decoration.
    scikit-learn classifiers. Vehicle classification is by real-world footprint
    from the homography, never by appearance.
 2. **Background modelling is written by hand** with NumPy. `cv2.createBackground
-   SubtractorMOG2`/`KNN` may appear *only* as a clearly labelled reference
-   baseline in the comparison study, never on the production path.
+   SubtractorMOG2` appears *only* as the `mog2_baseline` model in S3, which is a
+   clearly labelled reference the comparison study measures the hand-written
+   models against; it is never the default and never on the production path.
+   KNN does not appear at all. `tests/test_constraints.py` pins both facts -
+   the baseline to one file and one option, and its description to wording a
+   reader actually sees.
 3. **Every operator carries a rationale and its syllabus unit**, surfaced in the
    UI. This is a course requirement, not a nicety.
 4. **CPU only.** Target ≥ 15 fps at 720p on a laptop.
 5. **Deterministic.** Same video and parameters give identical output. Seed
-   every RNG.
+   every RNG. Asserted for the renderer *and* for the pipeline: two runs must
+   agree on blob counts, stage metrics and every per-track speed, lane and
+   class, and re-seeding NumPy's global generator between runs must change
+   nothing - if it does, something is drawing from the global RNG and the run
+   is reproducible only until someone else draws a number first.
 6. **No enforcement claims.** The system measures speed. Over-limit rows are
    "flagged for review", never "violations", and the README states plainly that
    a legally admissible speed device needs type approval this project lacks.
@@ -243,7 +251,7 @@ The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q                        # 273 tests
+.venv/Scripts/python.exe -m pytest -q                        # 279 tests
 .venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
 .venv/Scripts/python.exe -m kerbside.data.make_clips --list  # scenarios
 .venv/Scripts/python.exe -m kerbside.data.make_clips --all   # regenerate clips
@@ -284,7 +292,7 @@ Do not start a phase until the previous gate passes. Commit at each gate.
 8. **Ablation Lab, report, docs** — done. `tests/test_api.py` exercises every
    endpoint end to end, which is what Phase 5's gate actually asks for; driving
    the routes by hand was not it, and three of the defects found while wiring
-   the console would have been caught by it. 273 tests pass; ruff clean; mypy
+   the console would have been caught by it. 279 tests pass; ruff clean; mypy
    strict clean over `core/`, `geometry/`, `operators/`.
 
 ## What not to do
