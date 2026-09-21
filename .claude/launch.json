@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "kerbside",
-      "runtimeExecutable": "python",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
       "runtimeArgs": [
         "run_kerbside.py",
         "--port",
