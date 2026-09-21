@@ -13,7 +13,7 @@ decades before deep learning, and what many still do.
 > All nine stages, the REST/MJPEG/WebSocket API, the operations console, the
 > nine ablation studies and the self-contained HTML report are built and
 > running; `python run_kerbside.py --scenario free_flow --open` starts the whole
-> thing on one port. 280 tests pass, `ruff` is clean and `mypy --strict` is clean
+> thing on one port. 289 tests pass, `ruff` is clean and `mypy --strict` is clean
 > over `core/`, `geometry/` and `operators/`.
 >
 > **Three of the eight gates were not met, and none has been rewritten to fit.**
@@ -106,10 +106,52 @@ If the frontend has not been built, the root route says so and explains how,
 rather than returning a 404 that looks like a broken install. The REST API and
 its OpenAPI documentation at `/docs` are available either way.
 
-The console has eight views: the live **Console**, **Calibration**, the
+The console has nine views: the live **Console**, **Calibration**, the
 **Pipeline** inspector, an **Operators** reference covering all 35 registered
 operators by syllabus unit, the **Shadow** and **Motion** labs, **Analytics**,
 the **Ablation** lab and the **Report**.
+
+### Online, with no server
+
+The same console also runs as a static website, which is how it is hosted on
+Vercel. There is no server behind it: the **real Python pipeline runs inside the
+visitor's browser** under [Pyodide](https://pyodide.org), CPython compiled to
+WebAssembly, which ships NumPy, SciPy, OpenCV, Pydantic and FastAPI. Nothing is
+ported or reimplemented in JavaScript; the `kerbside` package is bundled as it
+is and imported in a Web Worker.
+
+```bash
+cd frontend && npm run build:web
+```
+
+That bundles `backend/kerbside` into the engine, copies `docs/` alongside, and
+builds the frontend in its `web` mode into `frontend/dist-web/` - a separate
+folder, so a web build can never replace what the local server serves. The frontend then hands
+each request to `kerbside.api.inprocess.dispatch` instead of `fetch`, which
+calls **the same FastAPI route functions** the server does, resolved from
+FastAPI's own route table and validated by the same Pydantic models.
+`tests/test_inprocess.py` holds it to answering exactly as the HTTP server does.
+
+What differs, and why:
+
+| | Local server | Browser build |
+|---|---|---|
+| Where the pipeline runs | a Python process | the visitor's device, in WebAssembly |
+| Default clip | 720p, 12 s | 560×315, 5 s |
+| First load | instant | about 35 MB, cached after; ~45 s to a ready console on a laptop |
+| Video | MJPEG stream | the page steps the cursor and draws one frame at a time |
+| Telemetry | WebSocket push | polled from `GET /api/telemetry` |
+| Real video files | yes | no - there is no filesystem to read from |
+
+The browser runs the pipeline about **4.5× slower** than native. The clip size
+was chosen by measurement rather than guessed: at 480×270 for four seconds the
+pipeline counted **no vehicles at all**, because they are too small at the
+counting line to be confirmed as tracks; 560×315 for five seconds counts five
+and analyses in under a minute, which beat 640×360 on both counts and time.
+
+**Deploying:** import the repository into Vercel with the Root Directory left at
+the repository root. `vercel.json` sets the install and build commands and the
+output directory, so no project settings need changing.
 
 `docs/kerbside-interface.html` is a single self-contained page showing what the
 console renders, built from a real run. `docs/kerbside-presentation.html` is the

@@ -43,6 +43,10 @@ interface AppState {
   layers: Record<string, boolean>;
   toggleLayer: (k: string) => void;
 
+  /** Bumped each time the pipeline is re-run, so frames are fetched afresh. */
+  revision: number;
+  bumpRevision: () => void;
+
   log: LogEntry[];
   pushLog: (e: LogEntry) => void;
   logPaused: boolean;
@@ -103,6 +107,9 @@ export const useStore = create<AppState>((set, get) => ({
       /* preference only; not worth surfacing */
     }
   },
+
+  revision: 0,
+  bumpRevision: () => set((s) => ({ revision: s.revision + 1 })),
 
   log: [],
   pushLog: (e) => set((s) => ({ log: [...s.log.slice(-300), e] })),

@@ -173,13 +173,24 @@ def evaluate_once(
     duration_s: float,
     seed: int = 4242,
     overrides: dict[str, dict[str, Any]] | None = None,
+    width_px: int | None = None,
+    height_px: int | None = None,
 ) -> dict[str, Any]:
-    """Run the pipeline once over a clip and score everything against truth."""
-    scene = build_scene(scenario, seed=seed, duration_s=duration_s)
-    scene = scene.__class__(**{**scene.__dict__, "supersample": 1}) if False else scene
-    from dataclasses import replace as _replace
+    """Run the pipeline once over a clip and score everything against truth.
 
-    scene = _replace(scene, supersample=1)
+    ``width_px``/``height_px`` default to the scenario's own resolution. The
+    in-browser engine passes a smaller frame, because there the study runs on
+    the visitor's CPU through WebAssembly; figures at a reduced resolution are
+    comparable with each other but not with the 720p figures in the README.
+    """
+    scene = build_scene(
+        scenario,
+        seed=seed,
+        duration_s=duration_s,
+        width_px=width_px,
+        height_px=height_px,
+        supersample=1,
+    )
     renderer = TrafficRenderer(scene)
     frames, gts = [], []
     for frame, gt in renderer.render_clip():
@@ -220,7 +231,13 @@ def evaluate_once(
     }
 
 
-def run_ablation(key: str, duration_s: float = 6.0, seed: int = 4242) -> dict[str, Any]:
+def run_ablation(
+    key: str,
+    duration_s: float = 6.0,
+    seed: int = 4242,
+    width_px: int | None = None,
+    height_px: int | None = None,
+) -> dict[str, Any]:
     """Sweep one axis and return a table the interface can chart directly."""
     if key not in ABLATIONS:
         raise KeyError(
@@ -231,11 +248,16 @@ def run_ablation(key: str, duration_s: float = 6.0, seed: int = 4242) -> dict[st
 
     for value in preset.values:
         if preset.param == "scenario":
-            result = evaluate_once(str(value), duration_s, seed)
+            result = evaluate_once(str(value), duration_s, seed, None, width_px, height_px)
             setting = str(value)
         else:
             result = evaluate_once(
-                preset.scenario, duration_s, seed, {preset.stage_id: {preset.param: value}}
+                preset.scenario,
+                duration_s,
+                seed,
+                {preset.stage_id: {preset.param: value}},
+                width_px,
+                height_px,
             )
             setting = str(value)
         rows.append(

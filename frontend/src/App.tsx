@@ -17,6 +17,7 @@ import { api, ApiError, type Status } from "./lib/api";
 import { seconds } from "./lib/format";
 import { useStore, type ViewId } from "./lib/store";
 import { useTelemetry } from "./lib/ws";
+import { IN_BROWSER } from "./lib/engine";
 import { Button, ErrorNote } from "./components/primitives";
 import { ParamRail } from "./components/ParamRail";
 import { Inspector } from "./components/Inspector";
@@ -327,6 +328,24 @@ function StatusBar({
       >
         {theme === "dark" ? "☾" : "☀"}
       </button>
+      {IN_BROWSER ? (
+        <>
+          <span
+            className="rounded border border-accent/40 bg-accent-dim px-1.5 text-[10.5px] text-accent"
+            title="No server: the Python pipeline is running in this page under WebAssembly."
+          >
+            running in your browser
+          </span>
+          <a
+            href="docs/"
+            target="_blank"
+            rel="noopener"
+            className="text-[10.5px] text-accent hover:underline"
+          >
+            project overview
+          </a>
+        </>
+      ) : null}
       <span className="text-[10.5px] text-muted">measurement only — not an enforcement device</span>
     </footer>
   );

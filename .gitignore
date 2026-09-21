@@ -20,6 +20,8 @@ htmlcov/
 
 node_modules/
 frontend/dist/
+# The web build goes elsewhere, so it can never replace what the local server serves.
+frontend/dist-web/
 frontend/.vite/
 
 .DS_Store
@@ -33,3 +35,7 @@ frontend/tsconfig.tsbuildinfo
 
 # Vercel CLI project state, including anonymous-deployment claim codes.
 .vercel
+
+# Build products of `npm run build:web` (the in-browser engine).
+frontend/public/engine/kerbside.json
+frontend/public/docs/

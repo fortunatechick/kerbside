@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Status } from "../lib/api";
+import { BROWSER_CLIP, IN_BROWSER } from "../lib/engine";
 import { Button, Empty, ErrorNote, Panel, Stat } from "../components/primitives";
 import { Viewport } from "../components/Viewport";
 import { useStore } from "../lib/store";
@@ -54,7 +55,9 @@ function SourcePicker() {
 
   const load = useMutation({
     mutationFn: (name: string) =>
-      api.loadScenario({ name, duration_s: 12.0, seed: 7 }),
+      api.loadScenario(
+        IN_BROWSER ? { name, seed: 7, ...BROWSER_CLIP } : { name, duration_s: 12.0, seed: 7 },
+      ),
     onSuccess: () => {
       void client.invalidateQueries();
     },
@@ -108,13 +111,26 @@ function SourcePicker() {
 
         {load.isPending ? (
           <p className="mt-4 text-[13px] text-accent">
-            Rendering the clip… a 12-second scenario takes a few seconds, because the
+            Rendering the clip… this takes a few seconds, because the
             renderer is producing ground truth as well as pixels.
           </p>
         ) : null}
         {load.isError ? <div className="mt-4"><ErrorNote message={String(load.error)} /></div> : null}
       </Panel>
 
+      {IN_BROWSER ? (
+        <div className="mt-3">
+          <Panel title="Running in your browser">
+            <p className="max-w-prose text-[13px] leading-relaxed text-secondary">
+              This copy of Kerbside has no server behind it. The Python pipeline is
+              running inside this page, on this device, under WebAssembly &mdash; which
+              is why scenarios render at {BROWSER_CLIP.width_px}&times;{BROWSER_CLIP.height_px}{" "}
+              for {BROWSER_CLIP.duration_s} seconds rather than at 720p. Opening a real
+              video file needs the local version, which reads from disk.
+            </p>
+          </Panel>
+        </div>
+      ) : (
       <div className="mt-3">
         <Panel title="Or a real clip">
           <p className="mb-3 max-w-prose text-[13px] leading-relaxed text-secondary">
@@ -149,6 +165,7 @@ function SourcePicker() {
           ) : null}
         </Panel>
       </div>
+      )}
 
       <div className="mt-3">
         <Empty

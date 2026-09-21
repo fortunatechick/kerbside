@@ -44,9 +44,13 @@ backend/kerbside/
   data/       synthetic renderer with exact ground truth, scenarios, degradation
   eval/       metrics, ablation, report
   api/        FastAPI routes, session, overlay; all I/O lives here
+              inprocess.py: calls the routes with no HTTP server (browser build)
   serve.py    the app; serves the built frontend from the same origin
 frontend/src/ React + TypeScript + Vite, served as static assets by FastAPI
-  lib/        typed API client, telemetry socket, UI state
+  lib/        typed API client, telemetry socket, UI state; engine.ts picks
+              server or in-browser engine at build time
+  public/engine/worker.js   Pyodide worker that runs the Python package
+  scripts/bundle-python.mjs packs backend/kerbside for the browser build
   components/ primitives, viewport, parameter rail, inspector
   views/      console, calibration, pipeline, shadow, motion, analytics,
               ablation, report
@@ -245,6 +249,36 @@ From Phases 4 and 5, measurement and the API:
   2.5-second clip put the same figure at 0.809, which is the reminder that a
   short clip is a different experiment and not a cheap version of a long one.
 
+From the browser build (Pyodide, deployed on Vercel):
+
+- **The browser runs the pipeline ~4.5x slower than native.** 480x270 for 4 s
+  took 7.8 s natively and 35.3 s in the browser. Choose clip sizes by measuring
+  in a browser, not by scaling native timings optimistically.
+- **Too small a frame counts nothing.** At 480x270 for 4 s the pipeline counted
+  zero vehicles - they are too small at the counting line to become confirmed
+  tracks. 560x315 for 5 s counts five and beat 640x360 on count and time. That
+  is `BROWSER_CLIP` in `frontend/src/lib/engine.ts`.
+- **FastAPI's ASGI path cannot run in a browser.** It hands synchronous
+  endpoints to a thread pool and WebAssembly has no threads. `inprocess.py`
+  calls the endpoint functions directly, resolving parameters from each route's
+  `dependant`, and replaces Starlette's `iterate_in_threadpool` with an inline
+  iterator so `StreamingResponse` bodies can be read. Use only introspection
+  both FastAPI 0.116 (Pyodide) and 0.141 (local) have: `field_info`,
+  `get_default()` and pydantic's `is_required()` - `ModelField.required` does
+  not exist in 0.141.
+- **Copy bytes before transferring them out of the worker.** `toJs()` can
+  return a view onto the WebAssembly heap; transferring that buffer detaches
+  Python's own memory.
+- **The page advances the cursor in the browser build.** Stepping on a timer
+  queues frames faster than the engine draws them; the player steps, draws, and
+  only then steps again.
+- **A parameter change re-runs the analysis immediately** in both builds, and
+  bumps a revision that is part of the frame URL. Before that, a slider changed
+  nothing visible while the video was paused, because the frame on screen was
+  cached and nothing requested a new one.
+- **Leaving the page restarts the engine.** Links out of the browser build open
+  in a new tab.
+
 ## Performance notes
 
 The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered:
@@ -263,13 +297,14 @@ The pipeline went from 1.28 fps to 4.0 fps at 720p during Phase 3. What mattered
 ## Commands
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q                        # 280 tests
+.venv/Scripts/python.exe -m pytest -q                        # 289 tests
 .venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open
 .venv/Scripts/python.exe -m kerbside.data.make_clips --list  # scenarios
 .venv/Scripts/python.exe -m kerbside.data.make_clips --all   # regenerate clips
 .venv/Scripts/python.exe -m ruff check backend tests
 .venv/Scripts/python.exe -m mypy backend/kerbside/core backend/kerbside/geometry backend/kerbside/operators --strict
 cd frontend && npm run build                                 # then reload the console
+cd frontend && npm run build:web                             # static site, pipeline in-browser
 ```
 
 `run_kerbside.py` puts `backend/` on `sys.path` and hands over to
@@ -324,7 +359,7 @@ measured, the status is "not measured" and never "passed".
 8. **Ablation Lab, report, docs** — done. `tests/test_api.py` exercises every
    endpoint end to end, which is what Phase 5's gate actually asks for; driving
    the routes by hand was not it, and three of the defects found while wiring
-   the console would have been caught by it. 280 tests pass; ruff clean; mypy
+   the console would have been caught by it. 289 tests pass; ruff clean; mypy
    strict clean over `core/`, `geometry/`, `operators/`.
 
 ## What not to do

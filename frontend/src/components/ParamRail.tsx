@@ -19,7 +19,22 @@ export function ParamRail({ stages }: { stages: StageInfo[] }) {
   const selectStage = useStore((s) => s.selectStage);
   const setStages = useStore((s) => s.setStages);
   const pushLog = useStore((s) => s.pushLog);
+  const bumpRevision = useStore((s) => s.bumpRevision);
   const client = useQueryClient();
+
+  // A parameter change invalidates the whole analysis, because the stages are
+  // stateful: every later frame depends on every earlier one. Re-running it now
+  // - rather than on the next frame request - is what makes a slider visibly do
+  // something while the video is paused, which is how people try them.
+  const rerun = useCallback(() => {
+    void api
+      .analyse(false)
+      .then(() => {
+        bumpRevision();
+        void client.invalidateQueries();
+      })
+      .catch((error) => pushLog({ t: Date.now(), source: "analyse", message: String(error) }));
+  }, [bumpRevision, client, pushLog]);
 
   const stage = stages.find((s) => s.stage_id === selected) ?? stages[0];
 
@@ -30,6 +45,7 @@ export function ParamRail({ stages }: { stages: StageInfo[] }) {
       setStages(stages.map((s) => (s.stage_id === data.stage.stage_id ? data.stage : s)));
       void client.invalidateQueries({ queryKey: ["status"] });
       void client.invalidateQueries({ queryKey: ["frame-stages"] });
+      rerun();
     },
     onError: (error) =>
       pushLog({ t: Date.now(), source: "params", message: String(error) }),
@@ -37,7 +53,10 @@ export function ParamRail({ stages }: { stages: StageInfo[] }) {
 
   const reset = useMutation({
     mutationFn: (id?: string) => api.resetParams(id),
-    onSuccess: (data) => setStages(data.stages),
+    onSuccess: (data) => {
+      setStages(data.stages);
+      rerun();
+    },
   });
 
   const commit = useCallback(

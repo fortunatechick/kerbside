@@ -11,6 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { downloadFromApi } from "../lib/engine";
 import { Button, Empty, ErrorNote, Panel, Stat } from "../components/primitives";
 import { kmph } from "../lib/format";
 
@@ -52,11 +53,13 @@ export function ReportView({ loaded }: { loaded: boolean }) {
       <Panel
         title="Export"
         actions={
-          <a href="/api/report.html" download>
-            <Button variant="primary" size="sm">
-              Download HTML report
-            </Button>
-          </a>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void downloadFromApi("/api/report.html", "kerbside-report.html")}
+          >
+            Download HTML report
+          </Button>
         }
       >
         <p className="max-w-prose text-[13px] leading-relaxed text-secondary">

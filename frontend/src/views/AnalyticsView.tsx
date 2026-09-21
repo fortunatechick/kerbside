@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../lib/api";
+import { downloadFromApi } from "../lib/engine";
 import { kmph } from "../lib/format";
 import { Empty, ErrorNote, Panel, Stat, Table } from "../components/primitives";
 
@@ -206,13 +207,13 @@ export function AnalyticsView({ loaded }: { loaded: boolean }) {
       ) : null}
 
       <div className="pb-2">
-        <a
-          href="/api/analytics/csv"
+        <button
+          type="button"
+          onClick={() => void downloadFromApi("/api/analytics/csv", "kerbside-vehicles.csv")}
           className="text-[12.5px] text-accent hover:underline"
-          download
         >
           Download the per-vehicle table as CSV →
-        </a>
+        </button>
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -87,6 +88,11 @@ class Session:
         self._telemetry: list[dict[str, Any]] = []
         self._log: list[dict[str, Any]] = []
         self._analysis_done = False
+        #: Optional ``(phase, done, total)`` callback for long operations.
+        #: The server never sets it. The in-browser engine does, because there
+        #: the analysis runs on the visitor's own CPU and a minute of silence
+        #: is indistinguishable from a crash.
+        self.on_progress: Callable[[str, int, int], None] | None = None
 
     # -- sources -----------------------------------------------------------
 
@@ -127,7 +133,9 @@ class Session:
         renderer = TrafficRenderer(scene)
         frames: list[UInt8Array] = []
         gts: list[GTFrame] = []
+        total_frames = max(1, int(round(scene.duration_s * scene.fps)))
         for frame, gt in renderer.render_clip():
+            self._progress("render", len(frames), total_frames)
             frames.append(frame)
             gts.append(gt)
 
@@ -240,6 +248,10 @@ class Session:
     #: inspector on an older frame triggers a replay instead.
     RETAINED_CONTEXTS = 10
 
+    def _progress(self, phase: str, done: int, total: int) -> None:
+        if self.on_progress is not None:
+            self.on_progress(phase, done, total)
+
     def _reset_analysis(self) -> None:
         self._outputs = {}
         self._telemetry = []
@@ -278,6 +290,7 @@ class Session:
             started = time.perf_counter()
             recent: deque[int] = deque()
             for index, frame in enumerate(self.frames):
+                self._progress("analyse", index, len(self.frames))
                 output = self.pipeline.process_frame(frame, frame_index=index)
                 self._outputs[index] = output
                 self._telemetry.append(self._telemetry_for(output))

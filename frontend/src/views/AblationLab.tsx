@@ -11,15 +11,19 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, type AblationResult, type AblationRow } from "../lib/api";
+import { BROWSER_CLIP, IN_BROWSER } from "../lib/engine";
 import { Button, Empty, ErrorNote, Panel } from "../components/primitives";
 
 export function AblationLab() {
   const list = useQuery({ queryKey: ["ablations"], queryFn: api.ablations });
-  const [duration, setDuration] = useState(6);
+  // In the browser every setting of a study is a full render and analysis on
+  // this device, so the default clip is short there.
+  const [duration, setDuration] = useState(IN_BROWSER ? 2 : 6);
   const [results, setResults] = useState<Record<string, AblationResult>>({});
 
   const run = useMutation({
-    mutationFn: (key: string) => api.runAblation(key, duration),
+    mutationFn: (key: string) =>
+      api.runAblation(key, duration, IN_BROWSER ? BROWSER_CLIP : undefined),
     onSuccess: (data) => setResults((r) => ({ ...r, [data.key]: data })),
   });
 
@@ -47,8 +51,11 @@ export function AblationLab() {
       >
         <p className="mb-3 max-w-prose text-[12.5px] text-secondary">
           Each study varies exactly one axis and scores every setting against the same
-          ground truth with the same metric set. The pipeline runs at about 4 fps, so a
-          six-second study with four settings takes a couple of minutes.
+          ground truth with the same metric set. The full pipeline runs at about 1 fps
+          at 720p, so a six-second study with four settings takes several minutes.
+          {IN_BROWSER
+            ? ` Here it runs in your browser at ${BROWSER_CLIP.width_px}×${BROWSER_CLIP.height_px}, so figures are comparable with each other but not with the 720p results in the report.`
+            : null}
         </p>
         <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
           {list.data?.ablations.map((a) => (

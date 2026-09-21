@@ -26,6 +26,18 @@
         "docs"
       ],
       "port": 8123
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8124",
+        "--directory",
+        "frontend/dist-web"
+      ],
+      "port": 8124
     }
   ]
 }

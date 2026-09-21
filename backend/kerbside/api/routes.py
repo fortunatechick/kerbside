@@ -433,6 +433,18 @@ def transport(request: TransportRequest) -> dict[str, Any]:
     }
 
 
+@router.get("/api/telemetry")
+def telemetry() -> dict[str, Any]:
+    """Telemetry for the frame under the cursor, as one request.
+
+    The WebSocket below is the right transport when a server is pushing frames.
+    With no server - the in-browser engine, where the page itself advances the
+    cursor - there is nothing to push from, so the console asks instead.
+    """
+    session = get_session()
+    return session.telemetry(session.cursor)
+
+
 @router.websocket("/ws/telemetry")
 async def telemetry_socket(socket: WebSocket) -> None:
     """Per-frame telemetry, paced and never queued.
@@ -670,9 +682,14 @@ def list_ablations() -> dict[str, Any]:
 
 
 @router.post("/api/ablations/{key}")
-def run_one_ablation(key: str, duration_s: float = 6.0) -> dict[str, Any]:
+def run_one_ablation(
+    key: str,
+    duration_s: float = 6.0,
+    width_px: int | None = None,
+    height_px: int | None = None,
+) -> dict[str, Any]:
     try:
-        return run_ablation(key, duration_s=duration_s)
+        return run_ablation(key, duration_s=duration_s, width_px=width_px, height_px=height_px)
     except (KeyError, ValueError, StageError) as error:
         raise _fail(error) from error
 

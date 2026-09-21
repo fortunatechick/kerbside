@@ -7,6 +7,8 @@
  * actionable; "Request failed" is not.
  */
 
+import { decodeJson, engineRequest, IN_BROWSER } from "./engine";
+
 export interface SourceState {
   source_name: string;
   source_kind: string;
@@ -189,6 +191,19 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (IN_BROWSER) {
+    // The same request, answered by the Python pipeline running in this page.
+    const response = await engineRequest(init?.method ?? "GET", path, init?.body ?? null);
+    const body = decodeJson<T & { detail?: unknown }>(response);
+    if (response.status >= 400) {
+      const detail = (body as { detail?: unknown }).detail;
+      throw new ApiError(
+        typeof detail === "string" ? detail : `${response.status}: ${JSON.stringify(detail)}`,
+        response.status,
+      );
+    }
+    return body;
+  }
   const response = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -283,8 +298,14 @@ export const api = {
   ablations: () =>
     request<{ ablations: { key: string; label: string; question: string }[] }>("/api/ablations"),
 
-  runAblation: (key: string, duration = 6) =>
-    request<AblationResult>(`/api/ablations/${key}?duration_s=${duration}`, { method: "POST" }),
+  runAblation: (key: string, duration = 6, size?: { width_px: number; height_px: number }) =>
+    request<AblationResult>(
+      `/api/ablations/${key}?duration_s=${duration}` +
+        (size ? `&width_px=${size.width_px}&height_px=${size.height_px}` : ""),
+      { method: "POST" },
+    ),
+
+  telemetry: () => request<Telemetry>("/api/telemetry"),
 
   report: () => request<Record<string, unknown>>("/api/report"),
 
@@ -308,9 +329,13 @@ export function birdseyeUrl(index: number, pxPerM = 8): string {
   return `/api/calibration/birdseye/${index}.jpg?px_per_m=${pxPerM}`;
 }
 
-export function frameUrl(index: number, layers: Record<string, boolean>): string {
+export function frameUrl(index: number, layers: Record<string, boolean>, revision = 0): string {
   const query = new URLSearchParams(
     Object.fromEntries(Object.entries(layers).map(([k, v]) => [k, v ? "1" : "0"])),
   );
+  // The revision changes whenever the pipeline is re-run, so the same frame
+  // index is fetched again instead of being served from the image cache with
+  // the previous parameters' result still drawn on it.
+  if (revision) query.set("rev", String(revision));
   return `/api/frame/${index}.jpg?${query.toString()}`;
 }

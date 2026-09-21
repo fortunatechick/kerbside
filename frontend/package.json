@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:web": "node scripts/bundle-python.mjs && tsc -b && vite build --mode web --outDir dist-web",
     "preview": "vite preview"
   },
   "dependencies": {

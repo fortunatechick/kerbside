@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, birdseyeUrl, frameUrl, type CalibrationInfo } from "../lib/api";
+import { useApiImage } from "../lib/engine";
 import { metres } from "../lib/format";
 import { Button, Empty, ErrorNote, Panel, Stat } from "../components/primitives";
 
@@ -84,6 +85,11 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
     },
     [mode, measure],
   );
+
+  const frameSrc = useApiImage(
+    loaded ? frameUrl(0, { boxes: false, lanes: false, counting_lines: false }) : null,
+  );
+  const birdseyeSrc = useApiImage(loaded && birdseye ? birdseyeUrl(0, 8) : null);
 
   if (!loaded) {
     return <Empty message="Load a source first — calibration needs a frame to click on." />;
@@ -159,7 +165,7 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
         <div className="relative flex h-full min-h-[280px] items-center justify-center overflow-hidden rounded-panel bg-black">
           {birdseye ? (
             <img
-              src={birdseyeUrl(0, 8)}
+              src={birdseyeSrc}
               alt="Road rectified to a plan view"
               className="max-h-full max-w-full object-contain"
             />
@@ -167,7 +173,7 @@ export function CalibrationView({ loaded }: { loaded: boolean }) {
             <>
               <img
                 ref={imgRef}
-                src={frameUrl(0, { boxes: false, lanes: false, counting_lines: false })}
+                src={frameSrc}
                 alt="Frame for calibration"
                 onClick={addPoint}
                 onLoad={(e) =>

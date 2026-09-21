@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { Telemetry } from "./api";
+import { api, type Telemetry } from "./api";
+import { IN_BROWSER } from "./engine";
 
 /**
  * Subscribe to per-frame telemetry.
@@ -15,6 +16,39 @@ export function useTelemetry(onMessage: (t: Telemetry) => void): void {
   handler.current = onMessage;
 
   useEffect(() => {
+    if (IN_BROWSER) {
+      // No server to push from: the page itself moves the cursor, so it asks
+      // for the telemetry of whatever frame is current. One request in flight
+      // at a time - a poll that queues behind a slow frame is a poll that
+      // arrives describing a frame the user has already left.
+      let stopped = false;
+      let busy = false;
+      let last = "";
+      const timer = window.setInterval(() => {
+        if (busy || stopped) return;
+        busy = true;
+        api
+          .telemetry()
+          .then((t) => {
+            // Keyed on more than the frame index: after a re-analysis the same
+            // frame can carry different tracks, and must still be delivered.
+            const key = `${t.frame_index}:${t.total_count}:${JSON.stringify(t.tracks)}`;
+            if (!stopped && key !== last && t.total_count !== undefined) {
+              last = key;
+              handler.current(t);
+            }
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            busy = false;
+          });
+      }, 250);
+      return () => {
+        stopped = true;
+        window.clearInterval(timer);
+      };
+    }
+
     let socket: WebSocket | null = null;
     let timer: number | undefined;
     let closed = false;

@@ -69,6 +69,18 @@
     margin: 0 0 22px;
     max-width: 38em;
   }
+  .live { margin: 22px 0 0; }
+  .live a {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 16px;
+    border-radius: 10px;
+    padding: 11px 18px;
+  }
+  .live span { display: block; font-size: 14px; color: var(--ink-3); margin-top: 8px; }
   .badge {
     display: inline-block;
     background: var(--accent-soft);
@@ -233,6 +245,10 @@
       and measures every passing vehicle — using only classical image processing.
     </p>
     <span class="badge">No machine learning anywhere in the pipeline</span>
+    <p class="live">
+      <a href="../">Open the live console →</a>
+      <span>The real pipeline, running in your browser. No install needed.</span>
+    </p>
   </header>
 
   <section>
@@ -334,7 +350,7 @@
           <tr><td>Speed error</td><td class="num">≤ 2 km/h</td><td class="num">9.4 km/h</td><td class="miss">✗ Not met</td></tr>
           <tr><td>Lane assignment</td><td class="num">99%</td><td class="num">81%</td><td class="miss">✗ Not met</td></tr>
           <tr><td>Processing speed</td><td class="num">15 frames/s</td><td class="num">1.1 frames/s</td><td class="miss">✗ Not met</td></tr>
-          <tr><td>Automated tests</td><td class="num">all pass</td><td class="num">280 passing</td><td class="met">✓ Met</td></tr>
+          <tr><td>Automated tests</td><td class="num">all pass</td><td class="num">289 passing</td><td class="met">✓ Met</td></tr>
         </tbody>
       </table>
     </div>
@@ -376,7 +392,7 @@
     <h2>Limitations</h2>
     <ul class="plain">
       <li>Needs a fixed camera and a flat road — both are assumptions of the geometry.</li>
-      <li>Too slow for live video at present: about 1 frame per second.</li>
+      <li>Too slow for live video at present: about 1 frame per second at 720p. The online version runs in the browser at a smaller size (560&times;315) so a clip analyses in under a minute.</li>
       <li><strong>It measures speed but is not a speed-enforcement device</strong>, and never labels anything a violation. It does not read number plates or recognise faces.</li>
     </ul>
   </section>

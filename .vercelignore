@@ -1,8 +1,11 @@
-# Only docs/ is deployed. The backend is a long-lived Python process doing real
-# image processing; it cannot run as a serverless function and is not uploaded.
-backend/
-frontend/
+# The deployment builds the web console: the frontend, with the Python package
+# from backend/ bundled into it for the in-browser engine, and the documents
+# from docs/. Nothing else is needed on the build machine.
+.venv/
 tests/
 data/
-.venv/
-*.py
+frontend/node_modules/
+frontend/dist/
+frontend/dist-web/
+**/__pycache__/
+.claude/
