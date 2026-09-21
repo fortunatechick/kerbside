@@ -367,8 +367,8 @@ body.read #tapL,body.read #tapR{display:none}
       <tbody>
         <tr><td><strong>Numerics</strong></td><td class="n">NumPy</td>
             <td>Every operator is written as array arithmetic, so the code reads like the equation in the notes.</td></tr>
-        <tr><td><strong>I/O &amp; oracle</strong></td><td class="n">OpenCV</td>
-            <td>Video decode, JPEG encode, and a <em>test oracle only</em>. Its filters are never the production path — they are what the hand-written ones are asserted against.</td></tr>
+        <tr><td><strong>I/O &amp; primitives</strong></td><td class="n">OpenCV</td>
+            <td>Video decode, JPEG encode, and some low-level primitives on the hot path where speed matters: colour conversion, resizing, median filtering, morphology and adaptive thresholding. The operator library implements each of these by hand too, and tests them against OpenCV. The core techniques &mdash; background models, Otsu, the shadow test, phase correlation, block matching, the homography, tracking and speed &mdash; are written by hand and run in production.</td></tr>
         <tr><td><strong>Speed-ups</strong></td><td class="n">SciPy</td>
             <td><code>ndimage</code> labelling and <code>find_objects</code>, after profiling showed a pure-NumPy component pass costing 23 ms per call.</td></tr>
         <tr><td><strong>API</strong></td><td class="n">FastAPI + Uvicorn</td>
@@ -689,7 +689,7 @@ image  (u, v) in pixels
             <td>Refined on an <strong>upsampled DFT grid</strong>, not a parabolic fit — see the findings slide. Downsampled first for throughput.</td></tr>
         <tr><td><strong>S3 Background</strong></td>
             <td>Running average and temporal median, both written by hand in NumPy, with selective update.</td>
-            <td>MOG2 and KNN exist in the codebase <em>only</em> as a labelled reference baseline in the comparison study. They are never the production path.</td></tr>
+            <td>OpenCV's MOG2 exists <em>only</em> as a labelled reference baseline in the comparison study, and is never the default. KNN is not used at all.</td></tr>
         <tr><td><strong>S4 Foreground</strong></td>
             <td>Difference, threshold (Otsu / adaptive / fixed), morphological clean-up sized by row.</td>
             <td>The difference is taken across <strong>colour channels</strong>, not on luma. On greyscale, four of ten body colours are invisible.</td></tr>
