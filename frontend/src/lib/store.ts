@@ -27,6 +27,8 @@ interface AppState {
   toggleRail: () => void;
   consoleOpen: boolean;
   toggleConsole: () => void;
+  inspectorOpen: boolean;
+  toggleInspector: () => void;
 
   selectedStage: string;
   selectStage: (id: string) => void;
@@ -54,6 +56,17 @@ interface AppState {
 }
 
 const LAYER_KEY = "kerbside.layers";
+
+/** True on a phone or tablet. `any-pointer` rather than `pointer`, because an
+ *  iPad with a keyboard and trackpad attached reports a fine primary pointer
+ *  while still being used mostly by touch. */
+export function isTouchDevice(): boolean {
+  try {
+    return window.matchMedia("(any-pointer: coarse)").matches || navigator.maxTouchPoints > 1;
+  } catch {
+    return false;
+  }
+}
 
 function loadLayers(): Record<string, boolean> {
   const fallback = {
@@ -83,8 +96,12 @@ export const useStore = create<AppState>((set, get) => ({
 
   railCollapsed: false,
   toggleRail: () => set((s) => ({ railCollapsed: !s.railCollapsed })),
-  consoleOpen: true,
+  // Collapsed by default on a touch screen: on a tablet the vertical space is
+  // worth more to the video than to a log, and it is one tap to open.
+  consoleOpen: !isTouchDevice(),
   toggleConsole: () => set((s) => ({ consoleOpen: !s.consoleOpen })),
+  inspectorOpen: false,
+  toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
 
   selectedStage: "s4_foreground",
   selectStage: (id) => set({ selectedStage: id }),

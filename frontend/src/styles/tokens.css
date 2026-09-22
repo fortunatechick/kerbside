@@ -154,3 +154,92 @@ input[type="range"]::-moz-range-thumb {
 .delta-flash {
   animation: deltaFlash 1500ms ease-out forwards;
 }
+
+/* ------------------------------------------------------------------ tablet --
+ * Everything below applies to touch screens only (html.touch is set in
+ * main.tsx), so the desktop console is unchanged. Built for an iPad in Safari.
+ */
+
+/* Follow the visible height as Safari's toolbars show and hide; 100% is the
+ * fallback for browsers without dynamic viewport units. */
+#root {
+  height: 100%;
+  height: 100dvh;
+}
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Keep the status bar clear of the home indicator on iPads without a button. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* A parameter's explanation. A mouse user reads it from the hover tooltip; a
+ * touch screen has no hover, so there it is shown under the control. */
+.param-desc {
+  display: none;
+}
+.touch .param-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* No double-tap zoom and no 300 ms tap delay; pinch-zoom still works. */
+.touch {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fingers, not cursors: Apple's minimum comfortable target is 44 pt; 36 px
+ * keeps the dense rail usable while being far easier to hit than 28. */
+.touch button:not([role="switch"]),
+.touch select {
+  min-height: 36px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Safari zooms the page in when a field under 16 px takes focus, and does not
+ * zoom back out - which leaves the console half off-screen mid-demo. */
+.touch select,
+.touch input[type="number"],
+.touch input[type="text"],
+.touch input:not([type]) {
+  font-size: 16px !important;
+}
+
+/* A long press on the video would otherwise raise the "Save Image" sheet. */
+.touch img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* A slider thumb big enough to grab with a finger, on a taller hit area. */
+.touch input[type="range"] {
+  height: 32px;
+}
+.touch input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+}
+.touch input[type="range"]::-webkit-slider-thumb {
+  height: 24px;
+  width: 24px;
+  margin-top: -10px;
+}
+.touch input[type="range"]::-moz-range-thumb {
+  height: 24px;
+  width: 24px;
+}
+
+/* The on/off switch keeps its proportions; its hit area grows instead. */
+.touch button[role="switch"] {
+  transform: scale(1.3);
+  transform-origin: right center;
+  margin: 6px 0;
+}

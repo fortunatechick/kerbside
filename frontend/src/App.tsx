@@ -50,6 +50,8 @@ export default function App() {
   const railCollapsed = useStore((s) => s.railCollapsed);
   const toggleRail = useStore((s) => s.toggleRail);
   const consoleOpen = useStore((s) => s.consoleOpen);
+  const inspectorOpen = useStore((s) => s.inspectorOpen);
+  const toggleInspector = useStore((s) => s.toggleInspector);
   const toggleConsole = useStore((s) => s.toggleConsole);
   const stages = useStore((s) => s.stages);
   const setStages = useStore((s) => s.setStages);
@@ -171,7 +173,10 @@ export default function App() {
         </main>
 
         {/* ------------------------------------------------- inspector -- */}
-        <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden border-l border-subtle bg-surface xl:flex">
+        {/* Docked from 1024 px, which is every iPad held landscape. It used to
+            appear only from 1280 px, so on a tablet the panel carrying each
+            vehicle's speed, lane and class simply was not there. */}
+        <aside className="hidden w-[260px] shrink-0 flex-col overflow-hidden border-l border-subtle bg-surface lg:flex xl:w-[300px]">
           <div className="flex h-[42px] shrink-0 items-center border-b border-subtle px-3">
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
               Inspector
@@ -182,6 +187,33 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {/* Narrower than that - a tablet held upright - it opens on demand. */}
+      <button
+        type="button"
+        onClick={toggleInspector}
+        className="fixed bottom-[calc(44px+env(safe-area-inset-bottom))] right-3 z-30 rounded-ctl border border-accent bg-surface px-4 py-2 text-[13px] font-medium text-accent shadow-overlay lg:hidden"
+      >
+        {inspectorOpen ? "Close" : "Vehicles"}
+      </button>
+      {inspectorOpen ? (
+        <div className="fixed inset-0 z-20 lg:hidden" onClick={toggleInspector}>
+          <div className="absolute inset-0 bg-black/40" />
+          <aside
+            className="absolute bottom-0 right-0 top-0 flex w-[min(320px,85vw)] flex-col overflow-hidden border-l border-line bg-surface shadow-overlay"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-[52px] shrink-0 items-center border-b border-subtle px-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                Inspector
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <Inspector />
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       <StatusBar
         status={status.data ?? null}
@@ -293,15 +325,18 @@ function StatusBar({
   const state = status?.state;
   const slowest = status?.slowest_stage;
 
-  const cell = (label: string, value: string, hint?: string) => (
-    <span className="flex items-baseline gap-1.5" title={hint}>
+  const cell = (label: string, value: string, hint?: string, wide = false) => (
+    <span
+      className={`items-baseline gap-1.5 whitespace-nowrap ${wide ? "hidden xl:flex" : "flex"}`}
+      title={hint}
+    >
       <span className="text-[10px] uppercase tracking-[0.06em] text-muted">{label}</span>
       <span className="num text-[11.5px] text-secondary">{value}</span>
     </span>
   );
 
   return (
-    <footer className="flex h-[26px] shrink-0 items-center gap-4 overflow-x-auto border-t border-subtle bg-surface px-3">
+    <footer className="safe-bottom flex min-h-[26px] shrink-0 items-center gap-4 overflow-x-auto border-t border-subtle bg-surface px-3">
       {cell("source", state?.source_name ?? "none")}
       {state
         ? cell(
@@ -310,10 +345,12 @@ function StatusBar({
             "The declared rate is never used for timing. If these differ, every speed computed from the declared rate would carry that error.",
           )
         : null}
-      {state ? cell("size", `${state.width_px}×${state.height_px}`) : null}
+      {state ? cell("size", `${state.width_px}×${state.height_px}`, undefined, true) : null}
       {telemetry ? cell("t", seconds(telemetry.time_s)) : null}
-      {telemetry ? cell("frame", `${telemetry.frame_ms.toFixed(0)} ms`) : null}
-      {slowest ? cell("slowest", `${slowest[0]} ${slowest[1].toFixed(1)} ms`) : null}
+      {telemetry ? cell("frame", `${telemetry.frame_ms.toFixed(0)} ms`, undefined, true) : null}
+      {slowest
+        ? cell("slowest", `${slowest[0]} ${slowest[1].toFixed(1)} ms`, undefined, true)
+        : null}
       {state && !state.calibrated ? (
         <span className="rounded px-1.5 text-[11px] text-slow" title="Speeds and sizes are not physical until a calibration exists.">
           uncalibrated
@@ -331,7 +368,7 @@ function StatusBar({
       {IN_BROWSER ? (
         <>
           <span
-            className="rounded border border-accent/40 bg-accent-dim px-1.5 text-[10.5px] text-accent"
+            className="whitespace-nowrap rounded border border-accent/40 bg-accent-dim px-1.5 text-[10.5px] text-accent"
             title="No server: the Python pipeline is running in this page under WebAssembly."
           >
             running in your browser
@@ -340,13 +377,15 @@ function StatusBar({
             href="docs/"
             target="_blank"
             rel="noopener"
-            className="text-[10.5px] text-accent hover:underline"
+            className="whitespace-nowrap text-[10.5px] text-accent hover:underline"
           >
             project overview
           </a>
         </>
       ) : null}
-      <span className="text-[10.5px] text-muted">measurement only — not an enforcement device</span>
+      <span className="whitespace-nowrap text-[10.5px] text-muted">
+        <span className="hidden xl:inline">measurement only — </span>not an enforcement device
+      </span>
     </footer>
   );
 }

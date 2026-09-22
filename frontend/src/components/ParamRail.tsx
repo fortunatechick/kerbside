@@ -14,6 +14,9 @@ import { api, type ParamSpec, type StageInfo } from "../lib/api";
 import { useStore } from "../lib/store";
 import { Button, Select, Slider, Toggle, UnitChips } from "./primitives";
 
+/** Shared across renders and remounts: there is one pipeline to re-run. */
+const analysis = { running: false, again: false };
+
 export function ParamRail({ stages }: { stages: StageInfo[] }) {
   const selected = useStore((s) => s.selectedStage);
   const selectStage = useStore((s) => s.selectStage);
@@ -26,14 +29,32 @@ export function ParamRail({ stages }: { stages: StageInfo[] }) {
   // stateful: every later frame depends on every earlier one. Re-running it now
   // - rather than on the next frame request - is what makes a slider visibly do
   // something while the video is paused, which is how people try them.
+  //
+  // Coalesced: while one analysis runs, further changes only mark another as
+  // needed, so dragging a slider three times runs the pipeline twice - the one
+  // in progress and one with the final value - not three times in a queue. In
+  // the browser build each run is half a minute on the visitor's device.
   const rerun = useCallback(() => {
-    void api
-      .analyse(false)
-      .then(() => {
-        bumpRevision();
-        void client.invalidateQueries();
-      })
-      .catch((error) => pushLog({ t: Date.now(), source: "analyse", message: String(error) }));
+    if (analysis.running) {
+      analysis.again = true;
+      return;
+    }
+    analysis.running = true;
+    const run = (): void => {
+      analysis.again = false;
+      void api
+        .analyse(false)
+        .then(() => {
+          bumpRevision();
+          void client.invalidateQueries();
+        })
+        .catch((error) => pushLog({ t: Date.now(), source: "analyse", message: String(error) }))
+        .finally(() => {
+          if (analysis.again) run();
+          else analysis.running = false;
+        });
+    };
+    run();
   }, [bumpRevision, client, pushLog]);
 
   const stage = stages.find((s) => s.stage_id === selected) ?? stages[0];

@@ -114,6 +114,18 @@ export function Slider({
   onCommit: (v: number) => void;
 }) {
   const decimals = step < 1 ? String(step).split(".")[1]?.length ?? 2 : 0;
+  // Safari on a tablet fires both pointerup and touchend for one release.
+  // Committing twice would queue two full re-analyses, so a commit of the value
+  // that was just committed is dropped.
+  const committed = useRef(value);
+  useEffect(() => {
+    committed.current = value;
+  }, [value]);
+  const commit = (v: number) => {
+    if (v === committed.current) return;
+    committed.current = v;
+    onCommit(v);
+  };
   return (
     <label className="block" title={description}>
       <div className="flex items-baseline justify-between gap-2">
@@ -135,9 +147,11 @@ export function Slider({
         value={value}
         aria-label={label}
         onChange={(e) => onChange(Number(e.target.value))}
-        onPointerUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
-        onKeyUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
+        onPointerUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
+        onTouchEnd={(e) => commit(Number((e.target as HTMLInputElement).value))}
+        onKeyUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
       />
+      {description ? <span className="param-desc">{description}</span> : null}
     </label>
   );
 }
@@ -197,6 +211,7 @@ export function Select({
   return (
     <label className="block" title={description}>
       <span className="mb-1 block text-[12px] font-medium text-secondary">{label}</span>
+      {description ? <span className="param-desc mb-1">{description}</span> : null}
       <select
         value={value}
         aria-label={label}

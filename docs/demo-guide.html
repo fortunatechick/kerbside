@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kerbside — Demo Guide</title>
+<meta name="description" content="Step-by-step: preparing an iPad and presenting the live Kerbside console to a professor.">
+<style>
+  :root {
+    --bg: #ffffff; --soft: #f5f7fa; --line: #e3e8ee;
+    --ink: #14191f; --ink-2: #4a5663; --ink-3: #7a8694;
+    --accent: #1766a6; --accent-soft: #e8f1f9;
+    --warn: #8a5a00; --warn-soft: #fdf3e1;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1217; --soft: #161c23; --line: #252e38;
+      --ink: #e9eef3; --ink-2: #a8b3bf; --ink-3: #7b8794;
+      --accent: #58a9e3; --accent-soft: #14283a;
+      --warn: #e8b931; --warn-soft: #2a2311;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: var(--sans); font-size: 17px; line-height: 1.6; -webkit-text-size-adjust: 100%; }
+  .page { max-width: 780px; margin: 0 auto; padding: calc(44px + env(safe-area-inset-top)) clamp(20px, 5vw, 32px) 72px; }
+
+  .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+  h1 { font-size: clamp(32px, 7vw, 46px); line-height: 1.08; letter-spacing: -.03em; margin: 0 0 12px; }
+  .lede { font-size: 19px; color: var(--ink-2); margin: 0; }
+  h2 { font-size: 23px; letter-spacing: -.015em; margin: 52px 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  h2 .when { display: block; font: 600 12px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+  p { color: var(--ink-2); margin: 0 0 14px; }
+  strong { color: var(--ink); }
+
+  /* numbered steps */
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 18px 0 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 0 0 22px 52px; color: var(--ink-2); }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 0;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent); color: #fff; font: 700 16px/34px var(--sans); text-align: center;
+  }
+  ol.steps > li > strong:first-child { display: block; font-size: 18px; margin-bottom: 3px; }
+  .time { font: 600 12px var(--mono); color: var(--ink-3); margin-left: 6px; font-weight: 500; }
+
+  /* "tap" and "say" lines inside a demo step */
+  .do, .say { display: block; border-radius: 10px; padding: 10px 14px; margin-top: 8px; font-size: 16px; }
+  .do { background: var(--soft); border: 1px solid var(--line); color: var(--ink); }
+  .say { background: var(--accent-soft); color: var(--ink); border-left: 3px solid var(--accent); }
+  .do::before { content: "Do  "; font: 700 11px var(--mono); letter-spacing: .1em; color: var(--ink-3); }
+  .say::before { content: "Say  "; font: 700 11px var(--mono); letter-spacing: .1em; color: var(--accent); }
+  kbd { font-family: var(--sans); font-size: 14px; font-weight: 600; background: var(--bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
+
+  .note { border-radius: 12px; padding: 14px 16px; margin: 18px 0 0; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); color: var(--ink); font-size: 15.5px; }
+  .note strong { color: var(--warn); }
+
+  dl.faq { margin: 16px 0 0; }
+  dl.faq dt { font-weight: 650; margin-top: 16px; color: var(--ink); }
+  dl.faq dd { margin: 4px 0 0; color: var(--ink-2); }
+
+  ul.fix { padding-left: 20px; color: var(--ink-2); }
+  ul.fix li { margin-bottom: 10px; }
+
+  .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .links a { text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--accent); font-weight: 600; font-size: 15px; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
+
+  @media print {
+    :root { --bg: #fff; --soft: #f5f5f5; --ink: #000; --ink-2: #333; --accent-soft: #eef4fa; }
+    h2 { break-after: avoid; } ol.steps > li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <p class="eyebrow">Kerbside · Demo guide</p>
+  <h1>Showing it to your professor</h1>
+  <p class="lede">
+    How to prepare the iPad, what to tap, and what to say. The whole demo takes
+    about seven minutes.
+  </p>
+
+  <div class="note">
+    <strong>The one thing to know.</strong> There is no server. When the page
+    opens it downloads Python and runs the real pipeline <em>on the iPad
+    itself</em>. So the first load needs internet and takes a minute or so, and
+    the iPad has to stay on the page while it loads: leaving it starts the
+    download again.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2><span class="when">The day before · 15 minutes</span>Set up the iPad</h2>
+  <ol class="steps">
+    <li>
+      <strong>Check the site is live</strong>
+      On the Vercel dashboard, the latest deployment should say
+      <strong>Ready</strong>. Copy its address (it ends in <code>.vercel.app</code>).
+    </li>
+    <li>
+      <strong>Open it once on the iPad, on good Wi-Fi</strong>
+      Open the address in <strong>Safari</strong>. Wait for the loading screen to
+      tick through all five steps and the console to appear. The first visit
+      downloads about 35&nbsp;MB, and after that it is stored on the iPad.
+      <span class="do">Note how many seconds loading took. That is roughly what
+      you will wait on the day.</span>
+    </li>
+    <li>
+      <strong>Put it on the Home Screen</strong>
+      This makes it open full-screen like an app, without Safari's address bar.
+      <span class="do">Tap the Share button <kbd>⬆︎</kbd> → <kbd>Add to Home
+      Screen</kbd> → <kbd>Add</kbd>. A Kerbside icon appears.</span>
+    </li>
+    <li>
+      <strong>Rehearse once</strong>
+      Open it from the new icon and run through the demo below, top to bottom.
+    </li>
+    <li>
+      <strong>Stop the screen sleeping</strong>
+      <span class="do">Settings → Display &amp; Brightness → Auto-Lock →
+      <kbd>Never</kbd>. Turn on a Focus / Do Not Disturb so no notification
+      covers the screen. Charge the iPad.</span>
+    </li>
+    <li>
+      <strong>If you can, test on the network you'll present on</strong>
+      The page downloads Python from <code>cdn.jsdelivr.net</code>. Some
+      university networks block unusual sites. If it will not load there, a
+      phone hotspot works.
+    </li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <h2><span class="when">Five minutes before</span>Get it ready</h2>
+  <ol class="steps">
+    <li>
+      <strong>Close other apps and Safari tabs</strong>
+      The pipeline needs memory. Closing everything else is the best insurance
+      against the "could not start" message.
+    </li>
+    <li>
+      <strong>Open Kerbside from the Home Screen icon</strong>
+      Wait for the console to appear. <strong>Don't switch apps while it
+      loads</strong>, and don't tap the overview link on the loading screen: from
+      the Home Screen icon it opens in Safari, which counts as switching apps.
+    </li>
+    <li>
+      <strong>Hold the iPad sideways (landscape)</strong>
+      Everything fits on one screen: the menu on the left, the video in the
+      middle, and the list of vehicles on the right. Held upright, the vehicle
+      list moves behind a <kbd>Vehicles</kbd> button in the bottom-right corner.
+    </li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <h2><span class="when">The demo · about 7 minutes</span>What to tap and what to say</h2>
+  <ol class="steps">
+    <li>
+      <strong>Introduce it <span class="time">30 s</span></strong>
+      <span class="say">"Kerbside measures traffic from one fixed camera: how many
+      vehicles, how fast in km/h, which lane, and what size. It uses only
+      classical image processing, with no machine learning anywhere."</span>
+      <span class="do">Point at the <kbd>running in your browser</kbd> label at the
+      bottom of the screen.</span>
+      <span class="say">"There's no server here. The actual Python code is running
+      on this iPad right now."</span>
+    </li>
+
+    <li>
+      <strong>Play the video <span class="time">1 min</span></strong>
+      <span class="do">Tap <kbd>Play</kbd>.</span>
+      <span class="say">"Each box is a tracked vehicle, labelled with its ID, speed,
+      size class and colour. The dot at the bottom of each box is the point where
+      the tyres meet the road. That's the point I measure speed from, because
+      it's the only part of the vehicle that's actually on the road surface. The
+      dashed line is the counting line, and the counts per lane go up as vehicles
+      cross it."</span>
+      <span class="do">When it stops, tap a vehicle in the list on the right.</span>
+      <span class="say">"Every vehicle's speed is measured two independent ways, from
+      its position and from how its texture moves. Comparing them is how I found
+      where the errors come from."</span>
+    </li>
+
+    <li>
+      <strong>Tap a pixel <span class="time">30 s</span></strong>
+      <span class="do">Tap on any car in the video.</span>
+      <span class="say">"This shows what the pipeline decided about that exact pixel:
+      its colour, what the empty road looks like at that spot, the difference,
+      and whether that crossed the threshold. Every decision can be checked like
+      this."</span>
+    </li>
+
+    <li>
+      <strong>Show inside the pipeline <span class="time">1½ min</span></strong>
+      <span class="do">Tap <kbd>Pipeline</kbd> in the left menu. Scroll down
+      slowly.</span>
+      <span class="say">"These are the nine stages, each showing its actual output
+      for this frame. First the background model: what the empty road looks
+      like. Then everything that differs from it. Then shadows removed by colour.
+      Then the shapes separated into individual vehicles. The small tags like U2
+      and U6 are the syllabus units each stage uses."</span>
+    </li>
+
+    <li>
+      <strong>Measure a real distance <span class="time">1 min</span></strong>
+      <span class="do">Tap <kbd>Calibration</kbd> → <kbd>Measure a distance</kbd>,
+      then tap two points on the road on either side of one lane.</span>
+      <span class="say">"Four clicks on the road give an exact mapping from pixels to
+      metres. That's what turns pixels into real distances and speeds. A lane
+      should come out close to 3.5 metres, which is the width the scene was built
+      with."</span>
+      <span class="do">Tap <kbd>Bird's-eye</kbd>.</span>
+      <span class="say">"Here's the same road seen from directly above using that
+      mapping. The lane lines come out parallel, which is how you can see the
+      calibration is right."</span>
+    </li>
+
+    <li>
+      <strong>Show the results <span class="time">1 min</span></strong>
+      <span class="do">Tap <kbd>Analytics</kbd>.</span>
+      <span class="say">"Counts per lane and per size class, the speed distribution,
+      and the 85th-percentile speed, which is the figure road engineers use.
+      Anything over the limit is only 'flagged for review'. It's a measuring
+      tool, not a speed camera, and it never calls anything a violation."</span>
+    </li>
+
+    <li>
+      <strong>Change a setting live <span class="time">1–2 min, optional</span></strong>
+      <span class="do">Tap <kbd>Console</kbd>. In the left menu tap <kbd>S4</kbd>,
+      then change <kbd>Threshold</kbd> from <em>otsu</em> to <em>fixed</em>.</span>
+      A panel appears: <em>"Running the pipeline in your browser"</em>. It takes
+      about half a minute on a laptop and longer on an iPad (you'll know how long
+      from your rehearsal). Talk through it:
+      <span class="say">"Changing one setting re-runs the whole pipeline on every
+      frame, because each frame depends on the ones before it. It's all happening
+      on the iPad, which is why it takes a moment."</span>
+      <span class="do">When it finishes, the boxes and counts change. Then tap
+      <kbd>Reset stage</kbd> to put the setting back.</span>
+    </li>
+
+    <li>
+      <strong>Close honestly <span class="time">30 s</span></strong>
+      <span class="say">"I set eight measurable targets before writing any code. Five
+      were met, three weren't, and I haven't changed any of them afterwards. The
+      three misses share one cause: the detection step sometimes splits one
+      vehicle into two pieces. I proved it by re-running the scene with shadows
+      switched off entirely, and accuracy barely changed. The speed method that
+      doesn't depend on the vehicle's outline is twice as accurate, which
+      confirms it."</span>
+    </li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <h2><span class="when">If something goes wrong</span>Quick fixes</h2>
+  <ul class="fix">
+    <li><strong>Stuck on the loading screen:</strong> check the Wi-Fi, then reload
+      the page. The very first load needs internet.</li>
+    <li><strong>"The pipeline could not start":</strong> close other apps and tabs,
+      then reload. It needs a recent iPad and about 1&nbsp;GB of free memory.</li>
+    <li><strong>It feels slow:</strong> that's expected. The processing is running
+      on the iPad's own processor. Keep talking; the progress panel shows it's
+      working.</li>
+    <li><strong>The screen went dark or you switched apps:</strong> the page may
+      restart loading. Wait for it, then carry on.</li>
+    <li><strong>Nothing works on the day:</strong> open the one-page overview
+      (below) and walk through it instead. It loads instantly. Or run the full
+      version on a laptop with
+      <code>.venv/Scripts/python.exe run_kerbside.py --scenario free_flow --open</code>.</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <h2><span class="when">Be ready for</span>Questions they may ask</h2>
+  <dl class="faq">
+    <dt>Why not just use YOLO or another neural network?</dt>
+    <dd>It would detect better, but it would answer a different question. This
+      course is classical image processing, and here the geometry does the
+      detector's job: a vehicle is classified by its size in metres, not by how it
+      looks.</dd>
+    <dt>Why are the accuracy figures below target?</dt>
+    <dd>One named cause: the detection step splits a vehicle into two pieces, for
+      example the roof and the bumper. Counts, sizes and one of the speed methods
+      all miss for that same reason. The fix belongs in the segmentation, and
+      tuning the later stages barely changed anything, which is how I know.</dd>
+    <dt>How is the speed actually worked out?</dt>
+    <dd>The calibration maps pixels to metres on the road. The point where the
+      vehicle meets the road is tracked from frame to frame, and speed is distance
+      travelled divided by time. A second, independent method matches the
+      vehicle's texture between frames and does the same.</dd>
+    <dt>Could it be used as a speed camera?</dt>
+    <dd>No. A legal speed device needs type approval and certified calibration,
+      which this doesn't have. It measures, it never labels anything a violation,
+      and it never reads number plates or faces.</dd>
+    <dt>Is this running live, or is it a recording?</dt>
+    <dd>Live. Change a setting and it re-runs the whole pipeline on the iPad. The
+      traffic itself is generated by a built-in simulator, which is what makes
+      exact accuracy figures possible: every true speed is known.</dd>
+  </dl>
+
+  <div class="links">
+    <a href="./">One-page overview</a>
+    <a href="../">Open the live console</a>
+    <a href="kerbside-presentation.html">Full presentation</a>
+  </div>
+
+  <footer>Kerbside · Image and Video Processing course project</footer>
+</main>
+</body>
+</html>

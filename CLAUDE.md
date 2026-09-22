@@ -277,7 +277,20 @@ From the browser build (Pyodide, deployed on Vercel):
   nothing visible while the video was paused, because the frame on screen was
   cached and nothing requested a new one.
 - **Leaving the page restarts the engine.** Links out of the browser build open
-  in a new tab.
+  in a new tab. From an iPad Home Screen icon a new tab means Safari, which is
+  itself leaving - the demo guide says so.
+- **The inspector used to vanish on every iPad.** It docked only from 1280 px;
+  iPads are 1024-1194 px in landscape. It now docks from `lg` (1024) and opens
+  from a Vehicles button below that.
+- **Safari fires both pointerup and touchend for one slider release**, which
+  committed twice and queued two full re-analyses. `Slider` drops a commit of
+  the value just committed, and `ParamRail` coalesces re-runs: while one runs,
+  further changes only mark one more as needed.
+- **Touch sizing is scoped to `html.touch`** (set in main.tsx from
+  `any-pointer: coarse`), so the desktop console is untouched. Form text is
+  16 px there because Safari zooms in on focus below that and never zooms back.
+- **A stale index.html boots the previous build**, because it names the hashed
+  bundle. vercel.json sends it with `no-cache`.
 
 ## Performance notes
 

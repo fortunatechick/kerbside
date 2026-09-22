@@ -149,6 +149,14 @@ pipeline counted **no vehicles at all**, because they are too small at the
 counting line to be confirmed as tracks; 560×315 for five seconds counts five
 and analyses in under a minute, which beat 640×360 on both counts and time.
 
+**On an iPad.** The console is laid out for tablets as well as laptops: the
+inspector docks from 1024 px (every iPad in landscape) and opens from a
+**Vehicles** button when held upright; controls grow to finger size; the
+explanations a mouse user reads from hover tooltips are shown as text; and
+"Add to Home Screen" opens it full-screen. `docs/demo-guide.html` - linked from
+the overview at `/docs/` - is a step-by-step guide to preparing an iPad and
+presenting the live console.
+
 **Deploying:** import the repository into Vercel with the Root Directory left at
 the repository root. `vercel.json` sets the install and build commands and the
 output directory, so no project settings need changing.
