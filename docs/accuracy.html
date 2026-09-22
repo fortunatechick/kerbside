@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Every accuracy figure Kerbside measures, with its target, its verdict and what it means: eight gates, 289 tests, detection, speed, calibration and throughput against exact ground truth.">
+<title>Kerbside Accuracy Record</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --soft: #f5f7fa;
+    --sunk: #eef2f6;
+    --line: #e3e8ee;
+    --ink: #14191f;
+    --ink-2: #4a5663;
+    --ink-3: #7a8694;
+    --accent: #1766a6;
+    --accent-soft: #e8f1f9;
+    --ok: #16794a;
+    --ok-soft: #e4f2ea;
+    --bad: #b3312f;
+    --bad-soft: #fbeaea;
+    --series-a: #1766a6;
+    --series-b: #b06f1a;
+    --track: #e7ebf0;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1217;
+      --soft: #161c23;
+      --sunk: #1b222a;
+      --line: #252e38;
+      --ink: #e9eef3;
+      --ink-2: #a8b3bf;
+      --ink-3: #7b8794;
+      --accent: #58a9e3;
+      --accent-soft: #14283a;
+      --ok: #45c282;
+      --ok-soft: #122b1f;
+      --bad: #ef6f6c;
+      --bad-soft: #2e1618;
+      --series-a: #3d95d1;
+      --series-b: #c4812a;
+      --track: #222b34;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1217;
+    --soft: #161c23;
+    --sunk: #1b222a;
+    --line: #252e38;
+    --ink: #e9eef3;
+    --ink-2: #a8b3bf;
+    --ink-3: #7b8794;
+    --accent: #58a9e3;
+    --accent-soft: #14283a;
+    --ok: #45c282;
+    --ok-soft: #122b1f;
+    --bad: #ef6f6c;
+    --bad-soft: #2e1618;
+    --series-a: #3d95d1;
+    --series-b: #c4812a;
+    --track: #222b34;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+  }
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding-inline: clamp(16px, 5vw, 32px);
+    padding-block: clamp(32px, 7vw, 56px) 72px;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- masthead ---------- */
+  .eyebrow {
+    font: 600 12px/1.4 var(--mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-size: clamp(31px, 7vw, 46px);
+    line-height: 1.04;
+    letter-spacing: -.03em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: clamp(17px, 2.4vw, 20px);
+    color: var(--ink-2);
+    margin: 0 0 8px;
+    max-width: 36em;
+  }
+  .provenance {
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+  .provenance strong { color: var(--ink); }
+
+  /* ---------- contents ---------- */
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .toc a {
+    display: block;
+    font: 500 14px/1 var(--sans);
+    color: var(--ink-2);
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 13px;
+  }
+  .toc a:hover, .toc a:focus-visible { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-top: clamp(44px, 8vw, 64px); scroll-margin-top: 16px; }
+  h2 {
+    font-size: clamp(22px, 4vw, 28px);
+    line-height: 1.2;
+    letter-spacing: -.02em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 17px;
+    margin: 32px 0 10px;
+    letter-spacing: -.01em;
+  }
+  .lede { color: var(--ink-2); margin: 0 0 22px; max-width: 40em; }
+  p { max-width: 40em; }
+  a { color: var(--accent); }
+
+  /* ---------- headline tiles ---------- */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 28px;
+  }
+  .tile { background: var(--bg); padding: 16px 18px 18px; }
+  .tile .k {
+    font: 600 11px/1.4 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .tile .v {
+    font: 600 30px/1 var(--sans);
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .v u { font-size: 16px; font-weight: 500; text-decoration: none; color: var(--ink-3); margin-left: 2px; }
+  .tile .n { font-size: 13px; color: var(--ink-3); margin-top: 6px; line-height: 1.35; }
+  .v.is-ok { color: var(--ok); }
+  .v.is-bad { color: var(--bad); }
+
+  /* ---------- chips ---------- */
+  .chip {
+    display: inline-block;
+    white-space: nowrap;
+    font: 600 12px/1.5 var(--sans);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  .chip.met { background: var(--ok-soft); color: var(--ok); }
+  .chip.missed { background: var(--bad-soft); color: var(--bad); }
+  .chip.ref { background: var(--sunk); color: var(--ink-3); }
+
+  /* ---------- tables ---------- */
+  .scroll { overflow-x: auto; margin: 22px 0 0; -webkit-overflow-scrolling: touch; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 460px;
+    font-size: 15px;
+  }
+  caption {
+    text-align: left;
+    font: 600 12px/1.4 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+  }
+  th, td { text-align: left; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    font: 600 12px/1.4 var(--mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-bottom-color: var(--ink-3);
+  }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.n { font-family: var(--mono); font-size: 14px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td strong { font-weight: 600; }
+  .win { color: var(--ok); font-weight: 600; }
+  .lose { color: var(--bad); font-weight: 600; }
+  .dim { color: var(--ink-3); }
+
+  /* ---------- bar charts ---------- */
+  .chart { margin: 24px 0 0; }
+  .chart-title { font: 600 15px/1.4 var(--sans); margin: 0 0 4px; }
+  .chart-sub { font-size: 14px; color: var(--ink-3); margin: 0 0 16px; }
+  .brow { margin-bottom: 14px; }
+  .bname { font-size: 14px; color: var(--ink-2); margin-bottom: 6px; }
+  .bname b { color: var(--ink); font-weight: 600; }
+  .bname .tgt { float: right; margin-left: 16px; font: 500 13px/1.5 var(--mono); color: var(--ink-3); }
+  .btrack {
+    position: relative;
+    height: 16px;
+    background: var(--track);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bfill { height: 100%; width: var(--w); background: var(--series-a); border-radius: 0 4px 4px 0; }
+  .bfill.b { background: var(--series-b); }
+  .bmark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--t);
+    width: 2px;
+    background: var(--bg);
+    box-shadow: 0 0 0 1px var(--ink-3);
+  }
+  .bvals { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 6px; }
+  .bval i.swatch { display: inline-block; vertical-align: -1px; margin-right: 6px; }
+  .bval { font: 600 14px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .btrack + .btrack { margin-top: 2px; }
+  .axis {
+    display: flex;
+    justify-content: space-between;
+    font: 500 12px/1 var(--mono);
+    color: var(--ink-3);
+    border-top: 1px solid var(--line);
+    padding-top: 6px;
+    margin-top: 16px;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 18px; font-size: 14px; color: var(--ink-2); }
+  .legend span { display: flex; align-items: center; gap: 7px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--series-a); flex: none; }
+  .swatch.b { background: var(--series-b); }
+
+  /* ---------- conclusion block ---------- */
+  .says {
+    margin: 26px 0 0;
+    padding: 2px 0 2px 18px;
+    border-left: 3px solid var(--accent);
+  }
+  .says h4 {
+    font: 600 12px/1.4 var(--mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  .says p { margin: 0 0 10px; }
+  .says p:last-child { margin-bottom: 0; }
+
+  /* ---------- causal chain ---------- */
+  .chain { list-style: none; margin: 24px 0 0; padding: 0; counter-reset: step; }
+  .chain li {
+    position: relative;
+    padding: 0 0 22px 34px;
+    border-left: 2px solid var(--line);
+    margin-left: 11px;
+  }
+  .chain li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .chain li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: -12px;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 12px/22px var(--mono);
+    text-align: center;
+  }
+  .chain b { display: block; font-size: 16px; margin-bottom: 2px; }
+  .chain span { color: var(--ink-2); font-size: 15px; }
+  .chain code { font: 600 14px var(--mono); color: var(--ink); background: var(--sunk); border-radius: 4px; padding: 1px 6px; }
+
+  /* ---------- notes ---------- */
+  .notes { list-style: none; margin: 22px 0 0; padding: 0; }
+  .notes li { padding: 14px 0; border-top: 1px solid var(--line); }
+  .notes li:last-child { border-bottom: 1px solid var(--line); }
+  .notes b { display: block; margin-bottom: 2px; }
+  .notes span { color: var(--ink-2); font-size: 15px; }
+
+  code { font-family: var(--mono); font-size: .92em; }
+  pre {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 18px 0 0;
+  }
+  footer {
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .bname .tgt { float: none; display: block; margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <p class="eyebrow">Image and Video Processing &middot; accuracy record</p>
+  <h1>What Kerbside measures, and how well</h1>
+  <p class="standfirst">Every number below is measured against exact ground truth, compared against a target
+  that was written before the code existed, and reported with its verdict &mdash; including the three
+  targets the system does not meet.</p>
+
+  <div class="provenance">
+    <strong>Where these numbers come from.</strong> Vehicles are rendered by a synthetic camera model that
+    records, per frame and per vehicle, exactly where each one was, how fast it was going, in which lane and
+    of what size. Accuracy is therefore the difference between what the pipeline reports and what the
+    renderer knows &mdash; not a hand annotation, and not an estimate. Every figure is asserted by a test in
+    <code>tests/</code>, and the clips regenerate byte-identically from their seed, so each one is
+    reproducible from a clean checkout.
+  </div>
+
+  <ul class="toc">
+    <li><a href="#gates">The eight gates</a></li>
+    <li><a href="#detection">Detection</a></li>
+    <li><a href="#measurement">Speed &amp; counting</a></li>
+    <li><a href="#throughput">Speed of the code</a></li>
+    <li><a href="#geometry">Geometry</a></li>
+    <li><a href="#background">Background models</a></li>
+    <li><a href="#operators">Operators</a></li>
+    <li><a href="#why">Why it fails</a></li>
+    <li><a href="#tests">Test ledger</a></li>
+    <li><a href="#reading">How to read these</a></li>
+  </ul>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="k">Gates met</div>
+      <div class="v num">5<u>&thinsp;/&thinsp;8</u></div>
+      <div class="n">Three missed, none rewritten</div>
+    </div>
+    <div class="tile">
+      <div class="k">Tests passing</div>
+      <div class="v num is-ok">289<u>&thinsp;/&thinsp;289</u></div>
+      <div class="n">0 failing, 0 skipped</div>
+    </div>
+    <div class="tile">
+      <div class="k">Vehicles detected</div>
+      <div class="v num">83.0<u>%</u></div>
+      <div class="n">17 in 100 visible vehicle-frames missed</div>
+    </div>
+    <div class="tile">
+      <div class="k">Best speed error</div>
+      <div class="v num is-bad">9.4<u> km/h</u></div>
+      <div class="n">Target was 2 km/h</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <section id="gates">
+    <p class="eyebrow">The headline</p>
+    <h2>Eight gates, five met</h2>
+    <p class="lede">Each build phase had one numeric criterion, fixed in writing before any of its code was
+    written. A criterion chosen after the measurement is not a criterion, it is a description &mdash; so none
+    of these was adjusted afterwards, and the three failures are reported as failures.</p>
+
+    <div class="scroll">
+      <table>
+        <caption>Phase gates and their outcomes</caption>
+        <thead>
+          <tr><th>Phase</th><th>Criterion, set in advance</th><th class="n">Measured</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1 &nbsp;Renderer &amp; geometry</td>
+            <td>Recorded ground point within <strong>1 px</strong> of the projection of the recorded world position</td>
+            <td class="n">&lt; 10<sup>&minus;6</sup> px</td>
+            <td><span class="chip met">met</span></td>
+          </tr>
+          <tr>
+            <td>2 &nbsp;Operator library</td>
+            <td>Every operator matched against a known answer or a reference implementation</td>
+            <td class="n">35 operators</td>
+            <td><span class="chip met">met</span></td>
+          </tr>
+          <tr>
+            <td>3 &nbsp;Detection, S1&ndash;S6</td>
+            <td>Blob count matches truth in <strong>&ge; 98%</strong> of frames</td>
+            <td class="n lose">25.0%</td>
+            <td><span class="chip missed">not met</span></td>
+          </tr>
+          <tr>
+            <td>4 &nbsp;Measurement, S7&ndash;S9</td>
+            <td>Counting <strong>&ge; 99%</strong>, speed MAE <strong>&le; 2 km/h</strong>, lane <strong>&ge; 99%</strong></td>
+            <td class="n lose">90.9% / 9.4 / 81%</td>
+            <td><span class="chip missed">not met</span></td>
+          </tr>
+          <tr>
+            <td>5 &nbsp;Backend API</td>
+            <td>Annotated stream at <strong>&ge; 15 fps</strong> at 720p</td>
+            <td class="n lose">1.1 fps</td>
+            <td><span class="chip missed">not met</span></td>
+          </tr>
+          <tr>
+            <td>6 &nbsp;Console &amp; calibration</td>
+            <td>Calibrate through the interface to within <strong>2%</strong> of the known homography</td>
+            <td class="n win">0.54%</td>
+            <td><span class="chip met">met</span></td>
+          </tr>
+          <tr>
+            <td>7 &nbsp;Shadow &amp; Motion labs</td>
+            <td>Fast block searches at least <strong>20&times;</strong> cheaper than exhaustive</td>
+            <td class="n win">32&ndash;36&times;</td>
+            <td><span class="chip met">met</span></td>
+          </tr>
+          <tr>
+            <td>8 &nbsp;Ablation, report, docs</td>
+            <td>Every API endpoint exercised end to end; lint and type checks clean</td>
+            <td class="n">289 tests</td>
+            <td><span class="chip met">met</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p>The system is accurate where the problem is <em>geometric</em> and inaccurate where the problem is
+      <em>photometric</em>. Everything that depends on the camera model &mdash; projection, calibration,
+      the homography, the motion vectors &mdash; lands within a fraction of a percent of truth. Everything
+      that depends on deciding which pixels belong to a vehicle lands well short.</p>
+      <p>The three missed gates are not three separate defects. Phases 3 and 4 are the same defect measured
+      one stage apart, and Phase 5 is a cost, not an error.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="detection">
+    <p class="eyebrow">Phase 3 &middot; stages S1&ndash;S6 &middot; target not met</p>
+    <h2>Detection: how often the right number of vehicles is found</h2>
+    <p class="lede">Free-flow clip, 18&ndash;80 m working range, vehicles of at least 300 visible pixels,
+    background warm-up excluded.</p>
+
+    <div class="chart">
+      <p class="chart-title">Per-vehicle accuracy against the per-frame gate</p>
+      <p class="chart-sub">All four quantities are proportions on one 0&ndash;1 scale. The vertical rule is the
+      target where one was set.</p>
+
+      <div class="brow">
+        <div class="bname"><b>Recall</b> &mdash; visible vehicles that produce a blob</div>
+        <div class="btrack"><div class="bfill" style="--w:83.0%"></div></div>
+        <div class="bvals"><span class="bval">0.830</span> <span class="dim">83 of every 100 found</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Precision</b> &mdash; blobs that are a real vehicle</div>
+        <div class="btrack"><div class="bfill" style="--w:82.3%"></div></div>
+        <div class="bvals"><span class="bval">0.823</span> <span class="dim">18 of every 100 blobs are not a vehicle</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Frame count agreement</b> &mdash; frames carrying exactly the right count <span class="tgt">target 0.98</span></div>
+        <div class="btrack"><div class="bfill" style="--w:25.0%"></div><div class="bmark" style="--t:98%"></div></div>
+        <div class="bvals"><span class="bval lose">0.250</span> <span class="dim">3 frames in 4 carry the wrong count</span></div>
+      </div>
+
+      <div class="axis"><span>0.0</span><span>0.5</span><span>1.0</span></div>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <caption>Detection, in full</caption>
+        <thead><tr><th>Measure</th><th class="n">Result</th><th class="n">Target</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>Frame count agreement</td><td class="n lose">25.0%</td><td class="n">&ge; 98%</td><td><span class="chip missed">not met</span></td></tr>
+          <tr><td>Recall, per vehicle</td><td class="n">0.830</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Precision, per vehicle</td><td class="n">0.823</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Mean absolute count error</td><td class="n">1.62 veh/frame</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Merge events / split events</td><td class="n">40 / 87</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Split events before the geometric merge</td><td class="n">144</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Shadow pixels correctly removed</td><td class="n win">87&ndash;97%</td><td class="n dim">&mdash;</td><td></td></tr>
+          <tr><td>Throughput at 720p</td><td class="n lose">4.0 fps</td><td class="n">&ge; 15 fps</td><td><span class="chip missed">not met</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p>The failure is <strong>fragmentation, not blindness</strong>. 83% of vehicles are found; the count is
+      wrong because a single vehicle frequently arrives as two blobs. Split events outnumber merge events
+      87 to 40, and a vehicle reported as two pieces fails a count comparison exactly as surely as one that
+      was never found at all.</p>
+      <p>Two fixes were made and measured. Correcting the closing element's height (see <a href="#why">Why it
+      fails</a>) accounted for most of the original error, and a geometric fragment merge in S6 &mdash; which
+      asks the homography how tall a vehicle standing at that point on the road would appear, and merges
+      pieces that fit inside one plausible silhouette &mdash; <strong>halved split events from 144 to 87</strong>
+      and lifted recall from 0.80 to 0.83.</p>
+      <p>Reaching 98% frame agreement would need recall and precision both above 0.99, roughly an order of
+      magnitude better than 0.83. The honest reading: <strong>the mask is good enough to track from, and not
+      yet good enough to count from frame by frame.</strong></p>
+      <p>Shadow removal is <em>not</em> the constraint, and this was tested rather than assumed: suppression
+      removes 87&ndash;97% of true shadow pixels per frame, turning it off does not improve the count, and
+      re-rendering the clip with no shadows at all leaves frame agreement essentially unchanged.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="measurement">
+    <p class="eyebrow">Phase 4 &middot; stages S7&ndash;S9 &middot; target not met</p>
+    <h2>Counting, lane, class and speed</h2>
+    <p class="lede">Free-flow clip, 12 seconds, scored against exact per-frame ground truth. The gate asked
+    for counting &ge; 99%, speed MAE &le; 2 km/h and lane &ge; 99%. None of the three is met &mdash; and what
+    the two independent speed routes deliver instead is a diagnosis of why.</p>
+
+    <div class="scroll">
+      <table>
+        <caption>Measurement accuracy</caption>
+        <thead><tr><th>Measure</th><th class="n">Result</th><th class="n">Target</th><th>In plain terms</th></tr></thead>
+        <tbody>
+          <tr><td>Count accuracy</td><td class="n lose">90.9%</td><td class="n">&ge; 99%</td><td>12 vehicles counted where 11 passed &mdash; one phantom</td></tr>
+          <tr><td>Lane assignment</td><td class="n lose">81%</td><td class="n">&ge; 99%</td><td>about 1 vehicle in 5 put in the wrong lane</td></tr>
+          <tr><td>Size class</td><td class="n lose">52%</td><td class="n dim">&mdash;</td><td>barely better than a coin toss between car and van</td></tr>
+          <tr><td>Speed, Route A &mdash; ground point</td><td class="n lose">19.5 km/h</td><td class="n">&le; 2 km/h</td><td>mean absolute error; bias &minus;14.35 km/h, i.e. it reads slow</td></tr>
+          <tr><td>Speed, Route B &mdash; block matching</td><td class="n lose">9.4 km/h</td><td class="n">&le; 2 km/h</td><td>mean absolute error; bias &minus;3.88 km/h</td></tr>
+          <tr><td>Route B advantage over Route A</td><td class="n win">2.1&times;</td><td class="n dim">&mdash;</td><td>less than half the error, on the same vehicles</td></tr>
+          <tr><td>Route B under a full sweep of its tuning</td><td class="n">9.4&ndash;9.6 km/h</td><td class="n dim">&mdash;</td><td>flat &mdash; the residual is not a tuning problem</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart">
+      <p class="chart-title">Two speed routes, built to fail in different ways</p>
+      <p class="chart-sub">Mean absolute error in km/h, on a 0&ndash;20 scale. The vertical rule at 2 km/h is
+      the gate.</p>
+
+      <div class="brow">
+        <div class="bname"><b>Route A &mdash; bounding-box ground point</b> <span class="tgt">bias &minus;14.35 km/h</span></div>
+        <div class="btrack"><div class="bfill" style="--w:97.5%"></div><div class="bmark" style="--t:10%"></div></div>
+        <div class="bvals"><span class="bval">19.5 km/h</span> <span class="dim">differences the mask edge through the road homography</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Route B &mdash; block matching</b> <span class="tgt">bias &minus;3.88 km/h</span></div>
+        <div class="btrack"><div class="bfill" style="--w:47.0%"></div><div class="bmark" style="--t:10%"></div></div>
+        <div class="bvals"><span class="bval">9.4 km/h</span> <span class="dim">tracks body texture, never touches the mask boundary</span></div>
+      </div>
+
+      <div class="axis"><span>0</span><span>10 km/h</span><span>20 km/h</span></div>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p><strong>The two routes agreeing on one defect is the strongest single result in the project.</strong>
+      They were built to fail independently: Route A differences the ground point of the bounding box through
+      the road homography, and Route B tiles the vehicle, discards untextured blocks, matches the rest against
+      the previous frame, takes the median displacement, refines it to sub-pixel by phase correlation and maps
+      it through the homography of the plane <em>at the height the blocks sit at</em>.</p>
+      <p>Route A's position is defined by the edge of the mask, and that mask under-covers the vehicle rear.
+      A short mask shortens the measured displacement, which under-reads the speed &mdash; and the measured
+      bias is <strong>&minus;14.35 km/h</strong>, reading slow, exactly as that explanation predicts. Route B
+      never touches the mask boundary and its bias is a quarter of that. Two methods that share no failure
+      mode pointing at the same cause is evidence that <strong>segmentation, not measurement, is the binding
+      constraint</strong>.</p>
+      <p>Route B's remaining error is structural, and this was tested rather than asserted: sweeping the
+      smoothing window and the gain moved its MAE between 9.4 and 9.6 km/h &mdash; essentially flat. There is
+      nothing left to tune in S8. The fix lives in S4&ndash;S6, where the mask is made. Tuning until the
+      number looked better would have hidden that.</p>
+      <p>Class accuracy at 52% has the same single cause. Classification is by real-world footprint in metres,
+      which is a sound basis &mdash; but a mask that splits a vehicle halves its footprint, so the class is
+      wrong for precisely the vehicles the mask fragments.</p>
+      <p>A third option, the blob centroid, is rejected on geometry rather than on measurement: a centroid
+      sits in the middle of the visible silhouette, which is not on the calibrated road plane at all, and its
+      error grows with distance <em>and</em> with vehicle height &mdash; correlation &asymp; 0.85 with height.
+      It never presents as a bug; it presents as trucks reading differently from cars. It is computed, and
+      used for association only.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="throughput">
+    <p class="eyebrow">Phase 5 &middot; target not met</p>
+    <h2>How fast the code runs</h2>
+    <p class="lede">This is the one shortfall that is a cost rather than an error: the answers are the same,
+    they simply arrive slowly.</p>
+
+    <div class="chart">
+      <p class="chart-title">Frames per second at 720p</p>
+      <p class="chart-sub">Scale runs to the 15 fps target, which is the full width of the track.</p>
+
+      <div class="brow">
+        <div class="bname"><b>Detection only, S1&ndash;S6</b> <span class="tgt">&asymp; 250 ms per frame</span></div>
+        <div class="btrack"><div class="bfill" style="--w:26.7%"></div></div>
+        <div class="bvals"><span class="bval">4.0 fps</span> <span class="dim">27% of the target rate</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Full pipeline, S1&ndash;S9 with block matching</b> <span class="tgt">&asymp; 910 ms per frame</span></div>
+        <div class="btrack"><div class="bfill" style="--w:7.3%"></div></div>
+        <div class="bvals"><span class="bval lose">1.1 fps</span> <span class="dim">7% of the target rate</span></div>
+      </div>
+
+      <div class="axis"><span>0</span><span>7.5 fps</span><span>15 fps &mdash; target</span></div>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <caption>Where the time goes</caption>
+        <thead><tr><th>Measure</th><th class="n">Result</th></tr></thead>
+        <tbody>
+          <tr><td>S8 block matching, per frame</td><td class="n">570&ndash;640 ms</td></tr>
+          <tr><td>Share of the full frame budget spent in S8</td><td class="n">roughly two-thirds</td></tr>
+          <tr><td>Pipeline speed-up achieved during Phase 3</td><td class="n win">1.28 &rarr; 4.0 fps</td></tr>
+          <tr><td>Browser build (Pyodide/WebAssembly) vs native</td><td class="n">4.5&times; slower</td></tr>
+          <tr><td>Same clip, 480&times;270 for 4 s: native vs browser</td><td class="n">7.8 s vs 35.3 s</td></tr>
+          <tr><td>Vehicles counted in the browser at 480&times;270</td><td class="n lose">0</td></tr>
+          <tr><td>Vehicles counted in the browser at 560&times;315</td><td class="n win">5</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p>One stage dominates. S8 searches every textured block inside every vehicle box, which costs roughly
+      two-thirds of the frame budget on its own and takes the pipeline from 4.0 fps to 1.1. <strong>Both
+      numbers are reported</strong> &mdash; quoting only the 4.0 would describe a pipeline that detects
+      vehicles but measures nothing about them.</p>
+      <p>Four optimisations during Phase 3 tripled the detection rate: replacing <code>np.minimum.at</code>
+      over a flattened label image (23 ms per call, three calls per frame) with one C pass; replacing hole
+      filling by iterated geodesic reconstruction &mdash; which needs as many full-frame dilations as the
+      longest path inside a hole &mdash; with a single flood fill from outside; slicing each component's
+      bounding box instead of comparing over the whole frame; and float32 rather than float64 throughout the
+      mask stages, because the input is 8-bit.</p>
+      <p>The browser figure matters for the demonstration rather than for the accuracy: clip size was chosen
+      by measuring in a real browser, not by scaling the native timing. At 480&times;270 the pipeline counts
+      <strong>nothing at all</strong> &mdash; vehicles are too small at the counting line to become confirmed
+      tracks &mdash; while 560&times;315 counts five and beats 640&times;360 on both count and time.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="geometry">
+    <p class="eyebrow">Phases 1 and 6 &middot; both met</p>
+    <h2>Geometry and calibration: where the system is exact</h2>
+    <p class="lede">These are the figures to read next to the failures above. The camera model and the
+    from-scratch homography estimator are correct to within numerical noise; what limits calibration in
+    practice is the user's mouse.</p>
+
+    <div class="scroll">
+      <table>
+        <caption>Geometry, measured</caption>
+        <thead><tr><th>Study</th><th class="n">Result</th></tr></thead>
+        <tbody>
+          <tr><td>Recorded ground point vs projection of recorded world position</td><td class="n win">&lt; 10<sup>&minus;6</sup> px</td></tr>
+          <tr><td>The same, under camera shake</td><td class="n win">&lt; 10<sup>&minus;6</sup> px</td></tr>
+          <tr><td>From-scratch DLT vs the closed-form camera homography</td><td class="n win">&lt; 10<sup>&minus;9</sup> relative</td></tr>
+          <tr><td>From-scratch DLT vs <code>cv2.findHomography</code></td><td class="n win">&lt; 10<sup>&minus;3</sup> px</td></tr>
+          <tr><td>Focal length recovered from the plane homography alone</td><td class="n win">exact to 10<sup>&minus;9</sup></td></tr>
+          <tr><td>Out-of-plane points from <code>H</code> alone vs the full projection matrix</td><td class="n win">&lt; 10<sup>&minus;6</sup> px</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What a human clicking on the screen costs</h3>
+    <div class="scroll">
+      <table>
+        <caption>Calibration error by click precision &mdash; criterion 2% over 18&ndash;60 m</caption>
+        <thead><tr><th>Clicking</th><th class="n">Median</th><th class="n">Worst / tail</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>Four exact clicks</td><td class="n win">&lt; 10<sup>&minus;9</sup></td><td class="n dim">&mdash;</td><td><span class="chip met">met</span></td></tr>
+          <tr><td>Half-pixel clicks, 18&ndash;60 m</td><td class="n win">&lt; 2%</td><td class="n">95th percentile &lt; 2%</td><td><span class="chip met">met</span></td></tr>
+          <tr><td>Whole-pixel clicks, 18&ndash;60 m</td><td class="n">&asymp; 1.2%</td><td class="n lose">tail past 2%</td><td><span class="chip missed">tail misses</span></td></tr>
+          <tr><td>Through the console API, half-pixel at 720p</td><td class="n win">0.14%</td><td class="n win">0.54%</td><td><span class="chip met">met</span></td></tr>
+          <tr><td>Through the console API, whole-pixel at 720p</td><td class="n win">0.27%</td><td class="n">1.08%</td><td><span class="chip met">met</span></td></tr>
+          <tr><td>Half-pixel clicks on a 320&times;180 frame</td><td class="n lose">2.05%</td><td class="n dim">&mdash;</td><td><span class="chip missed">misses</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p><strong>Calibration accuracy is bounded by click precision, not by the estimator.</strong> The DLT
+      recovers the rendering homography to one part in 10<sup>9</sup> from exact input; every percent lost
+      after that is the user's hand. That is why the calibration view offers zoom and recommends a large
+      quadrilateral, and why the accuracy claim is stated together with the range it holds over &mdash; past
+      about 60 m a single pixel is worth metres.</p>
+      <p>The last row is the important one for anyone repeating this: the 2% criterion is
+      <strong>resolution-dependent</strong>. The identical half-pixel jitter that gives 0.14% at 720p gives
+      2.05% at 320&times;180 and misses. The criterion has to be measured at the resolution the user actually
+      clicks on.</p>
+      <p>One negative result is worth as much as the positive ones. <strong>A four-point calibration's
+      reprojection residual is meaningless</strong>: four points determine a homography exactly, so the
+      residual is zero by construction no matter what was clicked or what real-world dimensions were typed
+      in. A self-consistent calibration can still be wrong by a constant factor, and every speed would be
+      wrong with it. Only the two-point distance check catches that.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="background">
+    <p class="eyebrow">Comparison study &middot; free-flow clip, 8 s, 18&ndash;80 m</p>
+    <h2>Which background model is best &mdash; and why the winner on paper loses</h2>
+    <p class="lede">This is the one place a hand-written model is scored against a standard implementation.
+    OpenCV's mixture-of-Gaussians subtractor appears here as a clearly labelled reference baseline and
+    nowhere else in the project; it is never the default and never on the production path.</p>
+
+    <div class="chart">
+      <p class="chart-title">Per-vehicle recall against the measure the gate actually used</p>
+      <p class="chart-sub">Both series are proportions on one 0&ndash;1 scale. Count accuracy is how close the
+      final vehicle total is to the nine that passed.</p>
+
+      <div class="legend">
+        <span><i class="swatch"></i> Recall &mdash; per vehicle</span>
+        <span><i class="swatch b"></i> Count accuracy &mdash; the gate</span>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Running average</b> <span class="tgt">the default</span></div>
+        <div class="btrack"><div class="bfill" style="--w:83.0%"></div></div>
+        <div class="btrack"><div class="bfill b" style="--w:77.8%"></div></div>
+        <div class="bvals"><span class="bval"><i class="swatch"></i>0.830</span><span class="bval"><i class="swatch b"></i>0.778</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Temporal median</b> <span class="tgt">best on both stated criteria</span></div>
+        <div class="btrack"><div class="bfill" style="--w:77.2%"></div></div>
+        <div class="btrack"><div class="bfill b" style="--w:88.9%"></div></div>
+        <div class="bvals"><span class="bval"><i class="swatch"></i>0.772</span><span class="bval win"><i class="swatch b"></i>0.889</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>Three-frame difference</b> <span class="tgt">fastest, and unusable</span></div>
+        <div class="btrack"><div class="bfill" style="--w:15.7%"></div></div>
+        <div class="btrack"><div class="bfill b" style="--w:22.2%"></div></div>
+        <div class="bvals"><span class="bval lose"><i class="swatch"></i>0.157</span><span class="bval lose"><i class="swatch b"></i>0.222</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>First-frame reference</b> <span class="tgt">exact total, wrong frames</span></div>
+        <div class="btrack"><div class="bfill" style="--w:77.4%"></div></div>
+        <div class="btrack"><div class="bfill b" style="--w:100%"></div></div>
+        <div class="bvals"><span class="bval"><i class="swatch"></i>0.774</span><span class="bval win"><i class="swatch b"></i>1.000</span></div>
+      </div>
+
+      <div class="brow">
+        <div class="bname"><b>MOG2</b> <span class="tgt">labelled reference baseline</span></div>
+        <div class="btrack"><div class="bfill" style="--w:95.1%"></div></div>
+        <div class="btrack"><div class="bfill b" style="--w:44.4%"></div></div>
+        <div class="bvals"><span class="bval win"><i class="swatch"></i>0.951</span><span class="bval lose"><i class="swatch b"></i>0.444</span></div>
+      </div>
+
+      <div class="axis"><span>0.0</span><span>0.5</span><span>1.0</span></div>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <caption>All five models, all five measures</caption>
+        <thead>
+          <tr><th>Model</th><th class="n">Recall</th><th class="n">Precision</th><th class="n">Frame agreement</th><th class="n">Count accuracy</th><th class="n">fps</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Running average <span class="dim">(default)</span></td><td class="n">0.830</td><td class="n">0.824</td><td class="n">0.250</td><td class="n">0.778</td><td class="n">1.35</td></tr>
+          <tr><td>Temporal median</td><td class="n">0.772</td><td class="n">0.908</td><td class="n win">0.367</td><td class="n win">0.889</td><td class="n">0.77</td></tr>
+          <tr><td>Three-frame difference</td><td class="n lose">0.157</td><td class="n">1.000</td><td class="n lose">0.017</td><td class="n lose">0.222</td><td class="n win">3.62</td></tr>
+          <tr><td>First-frame reference</td><td class="n">0.774</td><td class="n">0.760</td><td class="n">0.222</td><td class="n win">1.000</td><td class="n">1.39</td></tr>
+          <tr><td>MOG2 <span class="dim">(labelled baseline)</span></td><td class="n win">0.951</td><td class="n win">0.934</td><td class="n">0.294</td><td class="n lose">0.444</td><td class="n">1.22</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p><strong>MOG2 has the best recall and the best precision and is not the best model for this job.</strong>
+      It finds 95.1% of vehicles and then reports <strong>14 vehicles where 9 passed</strong>, because a
+      per-pixel Gaussian mixture fragments a single vehicle more readily than a median over time does. Recall
+      and precision are per-vehicle measures; the gate is a count. The model that wins the first two loses
+      the one that was set in advance. Reading a per-vehicle metric as though it were the gate is the mistake
+      this table exists to prevent.</p>
+      <p>The three-frame difference shows the same trap from the other side: precision 1.000, and it is the
+      worst model here. It only ever fires on a moving edge, so nearly everything it reports is real and
+      nearly everything real is missed.</p>
+      <p><strong>The temporal median beats the shipped default on both stated criteria</strong> &mdash; frame
+      agreement 0.367 against 0.250 and count accuracy 0.889 against 0.778 &mdash; at roughly half the
+      throughput. The default has not been changed, and deliberately so: this is one 8-second clip, and
+      changing a default on one clip is fitting the default to the clip. A 2.5-second clip put the same
+      figure at 0.809, which is the reminder that a short clip is a different experiment and not a cheap
+      version of a long one.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="operators">
+    <p class="eyebrow">Phase 2 &middot; 35 operators, units 2&ndash;8 &middot; met</p>
+    <h2>Operator-level accuracy against reference implementations</h2>
+    <p class="lede">Each operator is written out from its mathematical definition rather than called, and then
+    checked against a mature implementation where one exists. That is the honest basis for claiming it is
+    correct &mdash; and it is how the Canny bug below was found.</p>
+
+    <div class="scroll">
+      <table>
+        <caption>Known-answer and reference comparisons</caption>
+        <thead><tr><th>Study</th><th class="n">Result</th></tr></thead>
+        <tbody>
+          <tr><td>Hand-written correlation vs OpenCV, float input</td><td class="n win">&lt; 10<sup>&minus;3</sup> max abs. difference</td></tr>
+          <tr><td>Canny vs OpenCV on a real frame</td><td class="n">IoU 0.86</td></tr>
+          <tr><td>Canny vs OpenCV on a synthetic diagonal</td><td class="n win">IoU 0.97</td></tr>
+          <tr><td>Otsu vs OpenCV, textbook <code>argmax</code> mode</td><td class="n win">identical</td></tr>
+          <tr><td>DFT round trip</td><td class="n win">&lt; 10<sup>&minus;9</sup></td></tr>
+          <tr><td>Phase correlation, integer shift</td><td class="n win">&lt; 0.05 px</td></tr>
+          <tr><td>Phase correlation, sub-pixel shift</td><td class="n win">&lt; 0.1 px</td></tr>
+          <tr><td>Phase correlation under a 1.4&times; brightness change</td><td class="n win">&lt; 0.2 px &mdash; unaffected</td></tr>
+          <tr><td>Energy compaction at 4 of 64 coefficients</td><td class="n">DCT 0.996 &gt; Hadamard 0.994 &gt; DFT 0.991</td></tr>
+          <tr><td>Block matching, exhaustive, on real content</td><td class="n win">MAE 0.32 px &middot; 96% exact</td></tr>
+          <tr><td>Fast searches vs exhaustive, cost</td><td class="n win">36&times; (2-D log) &middot; 32&times; (three-step)</td></tr>
+          <tr><td>Fast searches, accuracy cost</td><td class="n lose">MAE 5.2 px &middot; 53&ndash;60% exact</td></tr>
+          <tr><td>Fast searches, prediction quality</td><td class="n">35 dB PSNR vs 42 dB exhaustive</td></tr>
+          <tr><td>Line test for bimodality: a unimodal Gaussian scores</td><td class="n">0.64 separability</td></tr>
+          <tr><td>Test coverage of <code>operators/</code></td><td class="n">84%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p>The block-matching rows are the pair worth reading twice. The fast searches are <strong>30-odd times
+      cheaper</strong> and still predict the next frame at 35 dB, which is entirely adequate for a video
+      codec &mdash; and they land <strong>five pixels</strong> from the true vector, which is not adequate for
+      a speed measurement. The same algorithm is a good choice for one job and a bad choice for the other.
+      That distinction is the finding, not a caveat.</p>
+      <p>The Canny figure of 0.86 against OpenCV is the honest number on a real frame, and the 0.97 on a
+      synthetic diagonal shows the implementation is right where the ground truth is unambiguous. It was
+      <strong>0.40</strong> until a sign error was found: in image coordinates rows increase downward, so a
+      +45&deg; gradient points down-right, and non-maximum suppression for that sector must compare (+1,&nbsp;+1)
+      against (&minus;1,&nbsp;&minus;1). With the diagonal sectors the wrong way round the algorithm silently
+      deletes diagonal edges &mdash; no crash, no warning, 0.86 &rarr; 0.40. Comparing against a reference
+      implementation is what caught it.</p>
+      <p>Two more corrections came out of measuring rather than assuming. <strong>Sub-pixel phase correlation
+      needs more than a parabolic fit</strong>: for a fractional shift the inverse transform of a pure phase
+      ramp is a periodic sinc with alternating side lobes, so a three-point parabola lands about a pixel out
+      &mdash; and OpenCV's own <code>phaseCorrelate</code> has the same problem, measured. Refining on an
+      upsampled DFT grid instead brings it under a tenth of a pixel. And <strong>Otsu's criterion is flat
+      across an empty histogram gap</strong>, so a plain <code>argmax</code> returns the lowest level in the
+      gap, hard against the upper tail of the dark mode, admitting far more noise than the middle would; this
+      implementation takes the plateau midpoint, which is no less optimal by Otsu's own criterion and markedly
+      more stable.</p>
+      <p>One study reports a difference that cannot exist, and says so. <strong>m-connectivity and
+      8-connectivity always induce identical components</strong> &mdash; provably, and asserted over random
+      masks. What m changes is the uniqueness of the path between two pixels, which matters for boundary
+      following and thinning, not for counting. The connectivity study therefore reports a count difference
+      for 4 against the other two, and <em>path ambiguity</em> for m. Reporting a count difference for m
+      would be reporting something that cannot happen.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="why">
+    <p class="eyebrow">The diagnosis</p>
+    <h2>Every missed accuracy target traces to one place</h2>
+    <p class="lede">The count, the class, the lane and the Route A speed bias are not four problems. They are
+    one problem &mdash; the mask &mdash; observed at four different stages, and the measurements below are
+    what establish that rather than assert it.</p>
+
+    <ol class="chain">
+      <li>
+        <b>A greyscale difference cannot see a red vehicle</b>
+        <span>BT.601 weights red at 0.299, so against this project's own asphalt a red body differs from the
+        road by <code>1.2 grey levels</code> &mdash; and by <code>94</code> in its red channel. Blue, brown
+        and green are within 10 levels too: <strong>four of ten body colours are not merely hard to detect
+        but invisible</strong>. The mask then contains their shadow and not them, which looks like a shadow
+        problem and is a colour problem introduced two stages earlier. The default difference is therefore
+        taken across colour channels; greyscale is kept only as the baseline that demonstrates the failure.</span>
+      </li>
+      <li>
+        <b>Hue is undefined where saturation is near zero, and asphalt is neutral</b>
+        <span>At a background saturation of about <code>0.075</code>, the hue difference across foreground
+        pixels has a median of <code>10</code> and a 95th percentile of <code>67</code>. That is not a
+        measurement of colour, it is the arctangent of two small noisy differences. Applying the textbook
+        10-unit hue tolerance there rejects <strong>half of a correctly identified shadow</strong>, so the
+        hue condition is enforced only above a saturation floor.</span>
+      </li>
+      <li>
+        <b>The closing element was six times too short</b>
+        <span>A silhouette extends upward from its ground point, so a metre of <em>height</em> projects at
+        close to the across-road scale &mdash; about <code>25 px/m</code> at image row 300 &mdash; while a
+        metre <em>along</em> the road projects at about <code>4 px/m</code>. Scaled by the wrong axis the
+        element comes out two pixels tall, the dark window band across a vehicle survives as a gap, and
+        <strong>every vehicle is reported as two blobs</strong>, a roof and a bumper. It presents as a
+        tracking problem. It is a structuring element sized against the wrong scale.</span>
+      </li>
+      <li>
+        <b>Fragmentation is what the count actually measures</b>
+        <span><code>87</code> split events against <code>40</code> merges, down from <code>144</code> splits
+        once S6 gained a geometric fragment merge. Frame agreement <code>25.0%</code>, mean absolute count
+        error <code>1.62</code> vehicles per frame.</span>
+      </li>
+      <li>
+        <b>One stage later, the same mask sets the class and the count</b>
+        <span>Classification is by footprint in metres, and a split mask halves the footprint:
+        class <code>52%</code>. Counting: <code>90.9%</code>, twelve where eleven passed.</span>
+      </li>
+      <li>
+        <b>And one stage after that, it sets the speed bias</b>
+        <span>A mask that under-covers the vehicle rear shortens the differenced displacement, so Route A
+        under-reads: bias <code>&minus;14.35 km/h</code>. Route B, which never touches the mask boundary,
+        biases <code>&minus;3.88</code>. A tuning sweep moves Route B by <code>0.2 km/h</code> and no further.</span>
+      </li>
+    </ol>
+
+    <div class="says">
+      <h4>What this says</h4>
+      <p>Improving S8 cannot help, and the flat tuning sweep is the proof. The accuracy ceiling of the whole
+      system is set in S3&ndash;S6, where pixels are decided to be vehicle or road &mdash; and the
+      interventions that moved the numbers so far were all of that kind: colour differencing instead of
+      luma, a saturation-gated hue test, a correctly scaled structuring element, an area-bounded hole fill,
+      and a geometric fragment merge.</p>
+      <p>Two further findings in the same family are worth naming because each looked like a different bug.
+      <strong>Filling holes after removing a shadow restores the shadow</strong>, because subtracting a shadow
+      from inside a larger foreground region leaves an <em>enclosed</em> hole that an unbounded fill puts
+      straight back &mdash; bounding the fill by area separates the two cases cleanly, since a windscreen is
+      hundreds of pixels and a cast shadow is tens of thousands. And the selective background update was
+      keyed on a foreground mask that is rebuilt per frame and is therefore always empty when S3 runs, so the
+      feature <strong>silently never fired</strong> until the previous frame's mask was handed to it
+      explicitly.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="tests">
+    <p class="eyebrow">Verification</p>
+    <h2>The test ledger</h2>
+    <p class="lede">Every figure on this page is asserted somewhere in <code>tests/</code>. Two of the
+    project's constraints &mdash; &ldquo;no machine learning anywhere&rdquo; and &ldquo;the same video and
+    parameters give identical output&rdquo; &mdash; are properties of the whole package rather than of any
+    one function, so they are tested by parsing every module and by running the pipeline twice.</p>
+
+    <div class="scroll">
+      <table>
+        <caption>289 tests, all passing</caption>
+        <thead><tr><th>Test module</th><th class="n">Tests</th><th>What it holds to account</th></tr></thead>
+        <tbody>
+          <tr><td><code>test_operators.py</code></td><td class="n">118</td><td>the 35 operators against known answers and reference implementations</td></tr>
+          <tr><td><code>test_stages.py</code></td><td class="n">35</td><td>S1&ndash;S9 and the detection metrics</td></tr>
+          <tr><td><code>test_api.py</code></td><td class="n">35</td><td>every REST, MJPEG and WebSocket endpoint, end to end</td></tr>
+          <tr><td><code>test_homography.py</code></td><td class="n">25</td><td>the from-scratch DLT and the camera geometry</td></tr>
+          <tr><td><code>test_calibration.py</code></td><td class="n">24</td><td>click precision, validation, lane definition</td></tr>
+          <tr><td><code>test_renderer.py</code></td><td class="n">22</td><td>the ground-truth contract the accuracy figures rest on</td></tr>
+          <tr><td><code>test_degrade.py</code></td><td class="n">15</td><td>resolution, JPEG, blur, noise and low light</td></tr>
+          <tr><td><code>test_inprocess.py</code></td><td class="n">9</td><td>the browser build answering exactly as the HTTP server does</td></tr>
+          <tr><td><code>test_constraints.py</code></td><td class="n">6</td><td>no learning framework imported; two runs identical down to each speed</td></tr>
+          <tr><td><strong>Total</strong></td><td class="n"><strong>289</strong></td><td><span class="chip met">all passing</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:22px">Alongside them: <code>ruff</code> clean across <code>backend</code> and
+    <code>tests</code>, and <code>mypy --strict</code> clean over <code>core/</code>, <code>geometry/</code>
+    and <code>operators/</code>. The determinism test re-seeds NumPy's global generator between the two runs
+    and requires nothing to change &mdash; if anything moved, some operator would be drawing from the global
+    RNG and the run would be reproducible only until someone else drew a number first.</p>
+
+    <pre>python -m pytest -q                    # 289 passed
+python -m ruff check backend tests
+python -m mypy backend/kerbside/core backend/kerbside/geometry \
+               backend/kerbside/operators --strict</pre>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="reading">
+    <p class="eyebrow">Method</p>
+    <h2>How to read these numbers</h2>
+    <p class="lede">Four of these were mistakes in the evaluation itself, found and corrected. They are listed
+    because a wrong metric costs more than a wrong algorithm: it hides the algorithm.</p>
+
+    <ul class="notes">
+      <li>
+        <b>Frame agreement is an exacting measure, and deliberately so.</b>
+        <span>It asks that <em>every</em> frame carry precisely the right count. At a mean absolute error of
+        1.62 vehicles per frame, 25% is not close to 98% and no reading of the number makes it closer.</span>
+      </li>
+      <li>
+        <b>Recall counts vehicles found, not blob&ndash;vehicle pairs.</b>
+        <span>A vehicle reported as two fragments has been found once. Crediting it twice let recall exceed
+        1.0, which is how the error surfaced.</span>
+      </li>
+      <li>
+        <b>The visibility gate says what <em>must</em> be found, not what <em>may</em> be found.</b>
+        <span>Gating ground truth by range while scoring every blob counts a correct detection just outside
+        the range as a false positive &mdash; worst exactly where it matters least, since a one-pixel
+        ground-point error at 100 m is about eight metres.</span>
+      </li>
+      <li>
+        <b>A per-vehicle metric is not the gate.</b>
+        <span>Recall and precision describe vehicles; the count describes a total. MOG2 wins the first two
+        and loses the third, and the background study exists to make that distinction visible.</span>
+      </li>
+      <li>
+        <b>One clip is one experiment.</b>
+        <span>The background comparison is an 8-second free-flow clip. A 2.5-second clip moved frame
+        agreement for the same model from 0.367 to 0.809. A short clip is a different experiment, not a
+        cheap version of a long one &mdash; which is why no default was changed on the strength of it.</span>
+      </li>
+      <li>
+        <b>Two figures are reported for throughput, not the flattering one.</b>
+        <span>4.0 fps is detection only; 1.1 fps is the full pipeline that actually measures speed. Quoting
+        only 4.0 would describe a system that does not do the job.</span>
+      </li>
+      <li>
+        <b>The gates were written first and none was rewritten.</b>
+        <span>Three of eight are recorded as failed. Lowering a criterion after seeing the measurement would
+        have made all eight meaningless.</span>
+      </li>
+      <li>
+        <b>This measures speed; it is not a speed-enforcement device.</b>
+        <span>A legally admissible speed measurement device requires type approval and periodic calibration
+        certification against traceable standards, and this project has neither. Vehicles recorded above a
+        configured limit are labelled &ldquo;flagged for review&rdquo;, never &ldquo;violation&rdquo;. No
+        number plate or face is read, stored or recognised anywhere in the design.</span>
+      </li>
+    </ul>
+  </section>
+
+  <footer>
+    Kerbside &middot; Image and Video Processing course project &middot; classical digital image processing
+    only, no machine learning anywhere in the pipeline. All figures measured against exact synthetic ground
+    truth and asserted in <code>tests/</code>.
+  </footer>
+
+</main>
+</body>
+</html>
