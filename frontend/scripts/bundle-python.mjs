@@ -40,6 +40,25 @@ if (files.length < 25) {
   throw new Error(`only ${files.length} Python modules found under ${packageRoot}`);
 }
 
+// Every subpackage the engine imports must be present. A missing one does not
+// fail the build on its own - it fails at import time, in the visitor's browser,
+// after a 35 MB download. That happened once: an unanchored "data/" in
+// .vercelignore stripped backend/kerbside/data/ from the deployment.
+const REQUIRED = ["api", "core", "data", "eval", "geometry", "operators", "stages"];
+const present = new Set(files.map((f) => relative(packageRoot, f).split(sep)[0]));
+const missing = REQUIRED.filter((pkg) => !present.has(pkg));
+if (missing.length) {
+  throw new Error(
+    `kerbside subpackage(s) missing from the build: ${missing.join(", ")}. ` +
+      `Check .vercelignore - an unanchored pattern matches at any depth.`,
+  );
+}
+for (const pkg of REQUIRED) {
+  if (!files.some((f) => relative(packageRoot, f).split(sep).join("/") === `${pkg}/__init__.py`)) {
+    throw new Error(`kerbside/${pkg}/__init__.py is missing from the build`);
+  }
+}
+
 const bundle = {};
 for (const file of files) {
   bundle[relative(backendRoot, file).split(sep).join("/")] = readFileSync(file, "utf8");
