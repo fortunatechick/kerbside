@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kerbside — Explanation (long)</title>
+<meta name="description" content="A speaking script for explaining the Kerbside project: what to say, section by section, with the figures to quote.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1217" media="(prefers-color-scheme: dark)">
+
+<script>
+  // Applied before first paint, so a saved theme or text size never flashes.
+  try {
+    var t = localStorage.getItem("kerbside.explain.theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    var z = parseFloat(localStorage.getItem("kerbside.explain.scale"));
+    if (z >= 0.85 && z <= 1.5) document.documentElement.style.setProperty("--scale", String(z));
+  } catch (e) {}
+</script>
+
+<style>
+  :root {
+    --bg: #ffffff; --soft: #f5f7fa; --line: #e3e8ee;
+    --ink: #14191f; --ink-2: #4a5663; --ink-3: #7a8694;
+    --accent: #1766a6; --accent-soft: #e8f1f9;
+    --ok: #16794a; --bad: #b3312f;
+    --show: #6b3fa0; --show-soft: #f3edfa;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --scale: 1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1217; --soft: #161c23; --line: #252e38;
+      --ink: #e9eef3; --ink-2: #a8b3bf; --ink-3: #7b8794;
+      --accent: #58a9e3; --accent-soft: #14283a;
+      --ok: #45c282; --bad: #ef6f6c;
+      --show: #b794e6; --show-soft: #221a30;
+    }
+  }
+  :root[data-theme="dark"] {
+      --bg: #0e1217; --soft: #161c23; --line: #252e38;
+      --ink: #e9eef3; --ink-2: #a8b3bf; --ink-3: #7b8794;
+      --accent: #58a9e3; --accent-soft: #14283a;
+      --ok: #45c282; --bad: #ef6f6c;
+      --show: #b794e6; --show-soft: #221a30;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    font-size: calc(17px * var(--scale));
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+  }
+  .page {
+    max-width: 780px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) clamp(18px, 5vw, 32px) 80px;
+  }
+
+  /* toolbar: version switch, text size, theme */
+  .bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding-bottom: 18px; margin-bottom: 26px; border-bottom: 1px solid var(--line);
+  }
+  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .switch a {
+    padding: 8px 14px; font-size: 14px; font-weight: 600; text-decoration: none;
+    color: var(--ink-2); background: var(--bg);
+  }
+  .switch a[aria-current="page"] { background: var(--accent); color: #fff; }
+  .tools { display: flex; gap: 8px; margin-left: auto; }
+  /* On a phone the version switch takes its own row, split evenly, with the
+     text-size and theme buttons together underneath. */
+  @media (max-width: 520px) {
+    .switch { flex: 1 1 100%; }
+    .switch a { flex: 1; text-align: center; padding: 9px 8px; }
+  }
+  .tool {
+    height: 38px; min-width: 42px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink-2);
+    font: 600 14px var(--sans); -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+
+  .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+  h1 { font-size: calc(clamp(32px, 7vw, 46px) * var(--scale)); line-height: 1.08; letter-spacing: -.03em; margin: 0 0 12px; }
+  .lede { font-size: calc(19px * var(--scale)); color: var(--ink-2); margin: 0 0 18px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .meta li {
+    border: 1px solid var(--line); background: var(--soft); border-radius: 999px;
+    padding: 4px 12px; font-size: 14px; color: var(--ink-2);
+  }
+
+  .how {
+    margin: 22px 0 0; padding: 14px 16px; border-radius: 12px;
+    background: var(--soft); border: 1px solid var(--line); font-size: 15px; color: var(--ink-2);
+  }
+  .how b { color: var(--ink); }
+  .how .k { display: inline-block; border-radius: 6px; padding: 0 7px; font-size: 13px; font-weight: 700; margin-right: 4px; }
+  .k.say-k { background: var(--accent-soft); color: var(--accent); }
+  .k.show-k { background: var(--show-soft); color: var(--show); }
+
+  /* sections */
+  section { margin-top: 46px; }
+  h2 {
+    display: flex; align-items: baseline; gap: 12px;
+    font-size: calc(24px * var(--scale)); letter-spacing: -.015em;
+    margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+  h2 .n {
+    flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); color: #fff; font: 700 15px/32px var(--sans); text-align: center;
+    align-self: center;
+  }
+  h2 .t { flex: 1; }
+  h2 .time { font: 500 13px var(--mono); color: var(--ink-3); white-space: nowrap; }
+
+  .say {
+    margin: 12px 0; padding: 14px 16px 14px 18px; border-radius: 12px;
+    background: var(--accent-soft); border-left: 4px solid var(--accent);
+    font-size: calc(18px * var(--scale)); line-height: 1.62; color: var(--ink);
+  }
+  .say p { margin: 0 0 10px; color: var(--ink); }
+  .say p:last-child { margin-bottom: 0; }
+  .show {
+    margin: 12px 0; padding: 10px 14px; border-radius: 10px;
+    background: var(--show-soft); color: var(--ink); font-size: calc(15px * var(--scale));
+  }
+  .show::before { content: "Show  "; font: 700 11px var(--mono); letter-spacing: .1em; color: var(--show); }
+  .note { color: var(--ink-2); font-size: calc(15px * var(--scale)); margin: 10px 0; }
+
+  /* figures to quote */
+  .facts { display: grid; gap: 10px; margin: 14px 0; grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 640px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+  .fact { border: 1px solid var(--line); background: var(--soft); border-radius: 12px; padding: 10px 12px; }
+  .fact .v { font: 700 calc(22px * var(--scale))/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+  .fact .l { font-size: calc(13px * var(--scale)); color: var(--ink-3); margin-top: 3px; line-height: 1.35; }
+  .v.ok { color: var(--ok); } .v.bad { color: var(--bad); } .v.acc { color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 14px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: calc(15px * var(--scale)); min-width: 480px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .met { color: var(--ok); font-weight: 700; white-space: nowrap; }
+  .miss { color: var(--bad); font-weight: 700; white-space: nowrap; }
+
+  /* questions */
+  dl.qa { margin: 0; }
+  dl.qa dt { font-weight: 700; color: var(--ink); margin-top: 18px; font-size: calc(17px * var(--scale)); }
+  dl.qa dd { margin: 6px 0 0; color: var(--ink-2); }
+  dl.qa dd::before { content: "→ "; color: var(--accent); font-weight: 700; }
+
+  code { font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere;
+         background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .links a { text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--accent); font-weight: 600; font-size: 15px; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
+
+  @media (max-width: 520px) {
+    .say { padding: 12px 13px 12px 14px; }
+    h2 { gap: 10px; }
+    h2 .n { width: 28px; height: 28px; line-height: 28px; font-size: 14px; }
+  }
+  @media print {
+    .bar { display: none; }
+    :root { --bg: #fff; --soft: #f5f5f5; --ink: #000; --ink-2: #333; --accent-soft: #eef4fa; --show-soft: #f5f0fb; }
+    section { break-inside: avoid-page; } .say { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div class="bar">
+    <nav class="switch" aria-label="Version">
+      <a href="explain-short.html">Short · 3 min</a>
+      <a href="explain-long.html" aria-current="page">Long · 12–15 min</a>
+    </nav>
+    <span class="tools">
+      <button class="tool" id="smaller" type="button" aria-label="Smaller text">A−</button>
+      <button class="tool" id="larger" type="button" aria-label="Larger text">A+</button>
+      <button class="tool" id="theme" type="button" aria-label="Switch between light and dark">Dark</button>
+    </span>
+  </div>
+
+  <p class="eyebrow">Kerbside · Explaining the project</p>
+  <h1>The long version</h1>
+  <p class="lede">The complete explanation in about twelve to fifteen minutes: the problem, the geometry, the data, all nine stages, the two speed methods, what I found, the results, the diagnosis and the limits.</p>
+  <ul class="meta"><li>About 11 minutes of talking</li><li>About 15 with the live demo</li><li>12 sections</li><li>Questions and syllabus map at the end</li></ul>
+
+  <div class="how">
+    <span class="k say-k">Say</span> is the script: read it, or say it in your own words.
+    <span class="k show-k">Show</span> is what to put on screen if you are demonstrating
+    the live console at the same time. Everything else is a note for you.
+  </div>
+
+  <section>
+    <h2><span class="n">1</span><span class="t">Opening: what it is</span><span class="time">1 min</span></h2>
+    <div class="say"><p>My project is <strong>Kerbside</strong>, a traffic analytics system. It takes video from one fixed camera beside a road and, for every vehicle that passes, it measures five things: how many vehicles there are, each one's speed in kilometres per hour, which lane it's in, its size class, and its colour.</p><p>The defining rule is that it uses <strong>only classical digital image processing</strong>: filtering, thresholding, morphology, colour models, frequency-domain methods, motion estimation and geometry. There is no neural network, no pretrained model and no machine learning anywhere in the pipeline. That isn't a limitation I worked around; it's the question the project asks: <em>can classical methods produce a calibrated physical measurement, not just a detection?</em></p></div>
+    <div class="show">The live console, paused on a frame with several labelled vehicles.</div>
+  </section>
+  <section>
+    <h2><span class="n">2</span><span class="t">Why it's hard</span><span class="time">1 min</span></h2>
+    <div class="say"><p>Every one of those outputs is a measurement in metres and seconds, but the image is indexed in pixels and frames. Five things make that difficult.</p><p>First, <strong>a pixel isn't a fixed distance</strong>: near the camera a metre might be thirty pixels, far away it's nine, so every size-based rule has to change with the row of the image. Second, <strong>cast shadows move with the vehicle</strong>, so every motion test sees them as foreground, and they join neighbouring cars into one blob. Third, <strong>a vehicle's dark windows</strong> can split it into a roof and a bumper. Fourth, video files often <strong>lie about their frame rate</strong>, and speed divides by time. And fifth, vehicles <strong>hide behind each other</strong>.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">3</span><span class="t">The core idea: geometry instead of training</span><span class="time">1½ min</span></h2>
+    <div class="say"><p>A learned detector answers "is this a car?" from appearance. I answer it from <strong>size in real-world metres</strong>, and that single substitution is what removes the need for any trained model.</p><p>The road is a flat plane, and a camera maps one plane to another through a <strong>homography</strong>, a 3×3 matrix with eight degrees of freedom. You recover it from four point correspondences: the four corners of a rectangle of known size on the road, such as one lane wide and one road marking long. I implemented the estimation from scratch using the normalised Direct Linear Transform. The normalisation matters, because without it the equations are badly conditioned exactly where the perspective is strongest.</p><p>Once calibrated, the bottom-centre of each vehicle's box, where the tyres meet the road, has a position in metres. Speed is distance over time, and a 4.5-metre footprint is a car while an 11-metre one is a bus. The decision boundary is a number anyone can check.</p></div>
+    <div class="facts"><div class="fact"><div class="v ok">< 10⁻⁶ px</div><div class="l">geometry round-trip error (target: 1 px)</div></div><div class="fact"><div class="v ok">0.54%</div><div class="l">worst distance error, calibrating through the interface</div></div><div class="fact"><div class="v ok">0.14%</div><div class="l">median distance error</div></div></div>
+    <div class="show">Calibration → <em>Measure a distance</em> across a lane, then <em>Bird's-eye</em>: the road seen from above, with parallel lane lines.</div>
+  </section>
+  <section>
+    <h2><span class="n">4</span><span class="t">Building the world: exact ground truth</span><span class="time">1 min</span></h2>
+    <div class="say"><p>You can't report a speed error without knowing the true speed, and hand-labelled video gives you boxes, not velocities. So I wrote a <strong>synthetic traffic renderer</strong> that knows every answer exactly: every vehicle's position, speed, lane, class and visible area, in every frame.</p><p>The vehicles follow a car-following model, so traffic behaves realistically. The renderer handles occlusion properly and draws physically correct shadows, and there are eight scenarios, each built to test one failure mode: free flow, congestion, night, rain, heavy occlusion, camera shake, long shadows and motion blur. I verified the renderer's own geometry to under a millionth of a pixel, because if the ground truth were wrong, every error figure would be measuring the renderer instead of the pipeline.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">5</span><span class="t">The pipeline, stage by stage</span><span class="time">3 min</span></h2>
+    <div class="say"><p>The pipeline has <strong>nine stages</strong>. Every one carries a written rationale and its syllabus unit, and the interface shows both next to its controls.</p><p><strong>S1, Ingest</strong>, decodes the video and measures the true frame rate from timestamps rather than trusting the file. <strong>S2, Stabilise</strong>, removes camera shake by phase correlation in the frequency domain, refined to sub-pixel accuracy.</p><p><strong>S3, Background</strong>, learns the empty road with a running average and a temporal median, both written by hand. The running average is literally a temporal low-pass filter: the Unit 2 smoothing operator with time as its axis.</p><p><strong>S4, Foreground</strong>, finds what differs from the background using Otsu thresholding, then cleans the mask with morphology whose element size is worked out from the homography for each row of the image. <strong>S5, Shadow</strong>, removes cast shadows with a test in HSV colour space: a shadow keeps its hue and loses brightness by a bounded ratio.</p><p><strong>S6, Blobs</strong>, turns the mask into separate vehicles with connected components, rejects shapes of the wrong real-world size, splits merged vehicles with a watershed, and joins fragments that fit inside one vehicle's outline. <strong>S7, Track</strong>, follows each vehicle in world metres, so a two-metre gate means two metres everywhere in the image. <strong>S8, Speed</strong>, measures speed two ways, which I'll come back to. And <strong>S9, Classify</strong>, assigns the size class from the footprint in metres and names the colour.</p></div>
+    <div class="show">The <em>Pipeline</em> view: background, then foreground, shadow removal and blobs, each with its unit tags. The <em>Operators</em> view lists all 35 operators by unit.</div>
+  </section>
+  <section>
+    <h2><span class="n">6</span><span class="t">Measuring speed two independent ways</span><span class="time">1½ min</span></h2>
+    <div class="say"><p>Speed is measured two ways for every vehicle, and they're designed to fail for different reasons, which is what makes comparing them informative.</p><p><strong>Route A</strong> tracks the point where the vehicle meets the road through the homography. That point is actually the vehicle's front edge, half a length short of its centre, so the position is biased. But the bias is constant, so it <strong>cancels when two positions are subtracted</strong>. That gives an unbiased speed from a biased position.</p><p><strong>Route B</strong> uses block matching: it follows the vehicle's texture from frame to frame. That texture sits about a metre above the road, so I map its motion through the homography for a plane at that height, not the road plane. Using the road plane would leave an error that never averages away.</p><p>I deliberately <em>don't</em> use the blob's centre point. It isn't on the road at all, and its error grows with the vehicle's height, which never looks like a bug. It just looks like trucks being slower than cars.</p></div>
+    <div class="facts"><div class="fact"><div class="v bad">19.5 km/h</div><div class="l">Route A error (ground point)</div></div><div class="fact"><div class="v acc">9.4 km/h</div><div class="l">Route B error (block matching)</div></div><div class="fact"><div class="v acc">2.1×</div><div class="l">Route B's accuracy advantage</div></div></div>
+    <div class="show">Tap a vehicle in the Inspector: both routes' speeds, side by side.</div>
+  </section>
+  <section>
+    <h2><span class="n">7</span><span class="t">What I found along the way</span><span class="time">2 min</span></h2>
+    <div class="say"><p>Some of the most useful results came from textbook methods failing on their own assumptions. Four examples.</p><p><strong>Greyscale can't see a red car.</strong> Converting to grey weights red at only 0.299, so on my own palette a red car differs from the asphalt by <strong>1.2 grey levels</strong>, but by <strong>94</strong> in its red channel. Four of ten body colours were essentially invisible. The difference is now taken across colour channels.</p><p><strong>Hue is meaningless on grey asphalt.</strong> Hue is undefined when saturation is near zero, and the textbook hue test rejected half of a correctly found shadow. It now only applies above a saturation floor.</p><p><strong>A closing element must be as tall as a vehicle, not as long as the road.</strong> A metre of height is about 25 pixels at mid-image, while a metre along the road is about 4. Sized the wrong way the element was two pixels tall, and every vehicle came out as two blobs.</p><p><strong>Sub-pixel phase correlation needs more than a parabola.</strong> The standard three-point parabolic fit lands about a pixel out, and OpenCV's own function has the same problem. Refining on an upsampled Fourier grid brings it under a tenth of a pixel.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">8</span><span class="t">Results against the targets</span><span class="time">1½ min</span></h2>
+    <div class="say"><p>I set eight targets <strong>before writing any code</strong>, and I haven't changed a single one since, because a target chosen after the measurement isn't a target, it's a description. <strong>Five are met and three are not.</strong></p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Target (set before any code)</th><th>Goal</th><th>Achieved</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>Geometry: projection accuracy</td><td class="num">under 1 px</td><td class="num">&lt; 0.000001 px</td><td class="met">✓ Met</td></tr>
+        <tr><td>Operators: known-answer tests</td><td class="num">every operator</td><td class="num">all pass</td><td class="met">✓ Met</td></tr>
+        <tr><td>Detection: right count per frame</td><td class="num">98% of frames</td><td class="num">25%</td><td class="miss">✗ Not met</td></tr>
+        <tr><td>Measurement: count / speed / lane</td><td class="num">99% / ≤2 km/h / 99%</td><td class="num">90.9% / 9.4 / 81%</td><td class="miss">✗ Not met</td></tr>
+        <tr><td>Throughput at 720p</td><td class="num">15 fps</td><td class="num">1.1 fps</td><td class="miss">✗ Not met</td></tr>
+        <tr><td>Calibration through the interface</td><td class="num">within 2%</td><td class="num">0.54% worst</td><td class="met">✓ Met</td></tr>
+        <tr><td>Motion study: accuracy vs cost</td><td class="num">&lt;1 px at ≥20×</td><td class="num">0.32 px at 32–36×</td><td class="met">✓ Met</td></tr>
+        <tr><td>Automated tests</td><td class="num">all pass</td><td class="num">289 passing</td><td class="met">✓ Met</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">If asked about speed: detection alone runs at 4.0 fps, and the full pipeline at 1.1 fps because block matching costs about 600 ms per frame. Both numbers are in the report, not just the faster one.</p>
+  </section>
+  <section>
+    <h2><span class="n">9</span><span class="t">The diagnosis: one cause behind the misses</span><span class="time">1 min</span></h2>
+    <div class="say"><p>The three misses aren't three separate problems. The detection step sometimes <strong>splits one vehicle into two pieces</strong>, and that one defect lowers the count, the size class and the Route A speed together.</p><p>I didn't assume that; I tested it. Shadow removal works: it removes <strong>87 to 97 percent</strong> of true shadow pixels. The decisive experiment was rendering the exact same scene <strong>with no shadows at all</strong>. Frame accuracy barely changed. If shadows were the problem, removing them perfectly would have fixed it, and it didn't.</p><p>The two speed routes independently agree. Route A depends on the edge of the vehicle's mask and reads on average 14 km/h too slow; Route B ignores the outline and is much more accurate. Two methods built to fail differently point to the same defect, which is what turns a number into a diagnosis.</p></div>
+    <div class="facts"><div class="fact"><div class="v acc">144 → 87</div><div class="l">split vehicles, before and after my fragment merge</div></div><div class="fact"><div class="v ok">87–97%</div><div class="l">true shadow pixels removed</div></div><div class="fact"><div class="v bad">25%</div><div class="l">frame accuracy, which barely moved with shadows removed</div></div></div>
+  </section>
+  <section>
+    <h2><span class="n">10</span><span class="t">The system around it</span><span class="time">1 min</span></h2>
+    <div class="say"><p>The pipeline sits inside a complete application: a web console with the live video, an inspector for each vehicle, a view of every stage's output, labs for shadows and motion, analytics, nine comparison studies and a one-click report.</p><p>It also runs <strong>entirely in the browser</strong>. The real Python code is compiled to WebAssembly and runs on the viewer's own device, with no server, which is how it is hosted online. It's about four and a half times slower there, so it uses a smaller frame.</p><p>It's backed by <strong>289 automated tests</strong>. Two of the rules are enforced by tests rather than just stated: one checks that no machine-learning library is imported anywhere, and another runs the whole pipeline twice and requires identical results. The one exception, OpenCV's standard background subtractor, is kept only as a labelled baseline to measure my own models against, and it's never the default.</p></div>
+    <div class="show">Point at <em>running in your browser</em> in the status bar. Optionally change the S4 threshold and let it re-run.</div>
+  </section>
+  <section>
+    <h2><span class="n">11</span><span class="t">Limitations and ethics</span><span class="time">45 s</span></h2>
+    <div class="say"><p>It assumes a fixed camera and a flat road, since the geometry depends on both. It's too slow for live video at present. And the accuracy targets aren't met, for the reason I've explained.</p><p>Ethically, it <strong>measures speed but it is not a speed camera</strong>. A legal speed device needs type approval and certified calibration, which this doesn't have. Anything over the limit is only "flagged for review", never a violation, and it never reads number plates or recognises faces.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">12</span><span class="t">Close</span><span class="time">30 s</span></h2>
+    <div class="say"><p>To summarise: geometry did a detector's job. A calibrated homography turned classification into arithmetic on metres and turned a tracked blob into a physical speed. Textbook methods were tested rather than assumed, and several failed on their own terms. And where I missed a target, I measured why instead of moving the target.</p><p>Thank you. I'm happy to go into any stage, or change something live so you can see it respond.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">?</span><span class="t">Questions they may ask</span><span class="time"></span></h2>
+    <dl class="qa">
+      <dt>Why not just use YOLO or another neural network?</dt>
+      <dd>It would detect better and answer a different question. The course is classical image
+      processing, and here the geometry does the detector's job. The trade-off is stated, not hidden.</dd>
+      <dt>Why is the accuracy so far below the targets?</dt>
+      <dd>One named cause: segmentation splits vehicles into pieces. A parameter sweep on the speed
+      stage moved its error by only 0.2 km/h, which shows the fix belongs earlier, in segmentation,
+      not in tuning.</dd>
+      <dt>Did you check your own background models against a standard one?</dt>
+      <dd>Yes, against OpenCV's MOG2 as a labelled baseline. MOG2 had the best recall and precision
+      per vehicle, but it counted 14 vehicles where there were 9, because it fragments vehicles more.
+      The target is a count, so it lost on the measure that mattered. My temporal median beat my own
+      default too, 0.367 against 0.250, but that was on one clip, so I recorded it rather than
+      changing the default.</dd>
+      <dt>How do you know the synthetic results mean anything?</dt>
+      <dd>Because the geometry of the renderer and the pipeline were verified against each other to
+      under a millionth of a pixel, and each scenario isolates one real failure mode. Synthetic and
+      real results are never averaged together.</dd>
+      <dt>What would you do next?</dt>
+      <dd>Fix the fragmentation at the foreground stage, with a colour-consistency region grow seeded
+      from the mask, then speed up block matching, which is most of the frame time.</dd>
+    </dl>
+  </section>
+  <section>
+    <h2><span class="n">U</span><span class="t">Syllabus coverage, if asked</span><span class="time"></span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Unit</th><th>Where it does real work</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>Sampling, quantisation, the pixel-to-metre geometry, the true frame rate</td></tr>
+        <tr><td class="num">2</td><td>Intensity transforms and colour models: the HSV shadow test, colour naming, the running average as a temporal filter</td></tr>
+        <tr><td class="num">3</td><td>Spatial filtering in background modelling and noise removal</td></tr>
+        <tr><td class="num">4</td><td>Fourier and cosine transforms, phase correlation, notch filtering</td></tr>
+        <tr><td class="num">5</td><td>Restoration: camera-shake correction and the degradation tests</td></tr>
+        <tr><td class="num">6</td><td>Morphology and connected components: separating vehicles</td></tr>
+        <tr><td class="num">7</td><td>Segmentation: Otsu and adaptive thresholding, edges, watershed</td></tr>
+        <tr><td class="num">8</td><td>Video: tracking, block matching and motion estimation for speed</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <div class="links">
+    <a href="explain-short.html">The short version</a>
+    <a href="demo-guide.html">Demo guide</a>
+    <a href="./">One-page overview</a>
+    <a href="../">Open the live console</a>
+  </div>
+
+  <footer>Kerbside · Image and Video Processing course project · classical digital image processing only</footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var themeBtn = document.getElementById("theme");
+    function theme() {
+      var set = root.getAttribute("data-theme");
+      if (set) return set;
+      return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    function label() { themeBtn.textContent = theme() === "dark" ? "Light" : "Dark"; }
+    themeBtn.addEventListener("click", function () {
+      var next = theme() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem("kerbside.explain.theme", next); } catch (e) {}
+      label();
+    });
+    if (window.matchMedia) {
+      var mq = matchMedia("(prefers-color-scheme: dark)");
+      var f = function () { if (!root.getAttribute("data-theme")) label(); };
+      if (mq.addEventListener) mq.addEventListener("change", f); else mq.addListener(f);
+    }
+    label();
+
+    // Text size, for reading from a tablet at arm's length.
+    function scale() { return parseFloat(getComputedStyle(root).getPropertyValue("--scale")) || 1; }
+    function setScale(z) {
+      z = Math.max(0.85, Math.min(1.5, Math.round(z * 100) / 100));
+      root.style.setProperty("--scale", String(z));
+      try { localStorage.setItem("kerbside.explain.scale", String(z)); } catch (e) {}
+    }
+    document.getElementById("smaller").addEventListener("click", function () { setScale(scale() - 0.1); });
+    document.getElementById("larger").addEventListener("click", function () { setScale(scale() + 0.1); });
+  })();
+</script>
+
+</body>
+</html>

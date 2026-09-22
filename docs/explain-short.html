@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kerbside — Explanation (short)</title>
+<meta name="description" content="A speaking script for explaining the Kerbside project: what to say, section by section, with the figures to quote.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1217" media="(prefers-color-scheme: dark)">
+
+<script>
+  // Applied before first paint, so a saved theme or text size never flashes.
+  try {
+    var t = localStorage.getItem("kerbside.explain.theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    var z = parseFloat(localStorage.getItem("kerbside.explain.scale"));
+    if (z >= 0.85 && z <= 1.5) document.documentElement.style.setProperty("--scale", String(z));
+  } catch (e) {}
+</script>
+
+<style>
+  :root {
+    --bg: #ffffff; --soft: #f5f7fa; --line: #e3e8ee;
+    --ink: #14191f; --ink-2: #4a5663; --ink-3: #7a8694;
+    --accent: #1766a6; --accent-soft: #e8f1f9;
+    --ok: #16794a; --bad: #b3312f;
+    --show: #6b3fa0; --show-soft: #f3edfa;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --scale: 1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1217; --soft: #161c23; --line: #252e38;
+      --ink: #e9eef3; --ink-2: #a8b3bf; --ink-3: #7b8794;
+      --accent: #58a9e3; --accent-soft: #14283a;
+      --ok: #45c282; --bad: #ef6f6c;
+      --show: #b794e6; --show-soft: #221a30;
+    }
+  }
+  :root[data-theme="dark"] {
+      --bg: #0e1217; --soft: #161c23; --line: #252e38;
+      --ink: #e9eef3; --ink-2: #a8b3bf; --ink-3: #7b8794;
+      --accent: #58a9e3; --accent-soft: #14283a;
+      --ok: #45c282; --bad: #ef6f6c;
+      --show: #b794e6; --show-soft: #221a30;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    font-size: calc(17px * var(--scale));
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+  }
+  .page {
+    max-width: 780px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) clamp(18px, 5vw, 32px) 80px;
+  }
+
+  /* toolbar: version switch, text size, theme */
+  .bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding-bottom: 18px; margin-bottom: 26px; border-bottom: 1px solid var(--line);
+  }
+  .switch { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .switch a {
+    padding: 8px 14px; font-size: 14px; font-weight: 600; text-decoration: none;
+    color: var(--ink-2); background: var(--bg);
+  }
+  .switch a[aria-current="page"] { background: var(--accent); color: #fff; }
+  .tools { display: flex; gap: 8px; margin-left: auto; }
+  /* On a phone the version switch takes its own row, split evenly, with the
+     text-size and theme buttons together underneath. */
+  @media (max-width: 520px) {
+    .switch { flex: 1 1 100%; }
+    .switch a { flex: 1; text-align: center; padding: 9px 8px; }
+  }
+  .tool {
+    height: 38px; min-width: 42px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink-2);
+    font: 600 14px var(--sans); -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+
+  .eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+  h1 { font-size: calc(clamp(32px, 7vw, 46px) * var(--scale)); line-height: 1.08; letter-spacing: -.03em; margin: 0 0 12px; }
+  .lede { font-size: calc(19px * var(--scale)); color: var(--ink-2); margin: 0 0 18px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .meta li {
+    border: 1px solid var(--line); background: var(--soft); border-radius: 999px;
+    padding: 4px 12px; font-size: 14px; color: var(--ink-2);
+  }
+
+  .how {
+    margin: 22px 0 0; padding: 14px 16px; border-radius: 12px;
+    background: var(--soft); border: 1px solid var(--line); font-size: 15px; color: var(--ink-2);
+  }
+  .how b { color: var(--ink); }
+  .how .k { display: inline-block; border-radius: 6px; padding: 0 7px; font-size: 13px; font-weight: 700; margin-right: 4px; }
+  .k.say-k { background: var(--accent-soft); color: var(--accent); }
+  .k.show-k { background: var(--show-soft); color: var(--show); }
+
+  /* sections */
+  section { margin-top: 46px; }
+  h2 {
+    display: flex; align-items: baseline; gap: 12px;
+    font-size: calc(24px * var(--scale)); letter-spacing: -.015em;
+    margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+  h2 .n {
+    flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); color: #fff; font: 700 15px/32px var(--sans); text-align: center;
+    align-self: center;
+  }
+  h2 .t { flex: 1; }
+  h2 .time { font: 500 13px var(--mono); color: var(--ink-3); white-space: nowrap; }
+
+  .say {
+    margin: 12px 0; padding: 14px 16px 14px 18px; border-radius: 12px;
+    background: var(--accent-soft); border-left: 4px solid var(--accent);
+    font-size: calc(18px * var(--scale)); line-height: 1.62; color: var(--ink);
+  }
+  .say p { margin: 0 0 10px; color: var(--ink); }
+  .say p:last-child { margin-bottom: 0; }
+  .show {
+    margin: 12px 0; padding: 10px 14px; border-radius: 10px;
+    background: var(--show-soft); color: var(--ink); font-size: calc(15px * var(--scale));
+  }
+  .show::before { content: "Show  "; font: 700 11px var(--mono); letter-spacing: .1em; color: var(--show); }
+  .note { color: var(--ink-2); font-size: calc(15px * var(--scale)); margin: 10px 0; }
+
+  /* figures to quote */
+  .facts { display: grid; gap: 10px; margin: 14px 0; grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 640px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+  .fact { border: 1px solid var(--line); background: var(--soft); border-radius: 12px; padding: 10px 12px; }
+  .fact .v { font: 700 calc(22px * var(--scale))/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+  .fact .l { font-size: calc(13px * var(--scale)); color: var(--ink-3); margin-top: 3px; line-height: 1.35; }
+  .v.ok { color: var(--ok); } .v.bad { color: var(--bad); } .v.acc { color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 14px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: calc(15px * var(--scale)); min-width: 480px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .met { color: var(--ok); font-weight: 700; white-space: nowrap; }
+  .miss { color: var(--bad); font-weight: 700; white-space: nowrap; }
+
+  /* questions */
+  dl.qa { margin: 0; }
+  dl.qa dt { font-weight: 700; color: var(--ink); margin-top: 18px; font-size: calc(17px * var(--scale)); }
+  dl.qa dd { margin: 6px 0 0; color: var(--ink-2); }
+  dl.qa dd::before { content: "→ "; color: var(--accent); font-weight: 700; }
+
+  code { font-family: var(--mono); font-size: .88em; overflow-wrap: anywhere;
+         background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .links a { text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--accent); font-weight: 600; font-size: 15px; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
+
+  @media (max-width: 520px) {
+    .say { padding: 12px 13px 12px 14px; }
+    h2 { gap: 10px; }
+    h2 .n { width: 28px; height: 28px; line-height: 28px; font-size: 14px; }
+  }
+  @media print {
+    .bar { display: none; }
+    :root { --bg: #fff; --soft: #f5f5f5; --ink: #000; --ink-2: #333; --accent-soft: #eef4fa; --show-soft: #f5f0fb; }
+    section { break-inside: avoid-page; } .say { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div class="bar">
+    <nav class="switch" aria-label="Version">
+      <a href="explain-short.html" aria-current="page">Short · 3 min</a>
+      <a href="explain-long.html">Long · 12–15 min</a>
+    </nav>
+    <span class="tools">
+      <button class="tool" id="smaller" type="button" aria-label="Smaller text">A−</button>
+      <button class="tool" id="larger" type="button" aria-label="Larger text">A+</button>
+      <button class="tool" id="theme" type="button" aria-label="Switch between light and dark">Dark</button>
+    </span>
+  </div>
+
+  <p class="eyebrow">Kerbside · Explaining the project</p>
+  <h1>The short version</h1>
+  <p class="lede">Everything essential in about three minutes: what it is, the idea that makes it work, how it works, and the results, honestly.</p>
+  <ul class="meta"><li>About 3 minutes</li><li>5 sections</li><li>Works with or without the live demo</li></ul>
+
+  <div class="how">
+    <span class="k say-k">Say</span> is the script: read it, or say it in your own words.
+    <span class="k show-k">Show</span> is what to put on screen if you are demonstrating
+    the live console at the same time. Everything else is a note for you.
+  </div>
+
+  <section>
+    <h2><span class="n">1</span><span class="t">What it is</span><span class="time">30 s</span></h2>
+    <div class="say"><p>My project is called <strong>Kerbside</strong>. It takes video from one fixed camera beside a road and measures every vehicle that passes: how many there are, how fast each one is going in kilometres per hour, which lane it is in, its size class, and its colour.</p><p>The rule I set myself was that it uses <strong>only classical image processing</strong>. There is no neural network or machine learning anywhere in the pipeline.</p></div>
+    <div class="show">The live console playing the <em>free_flow</em> clip, with boxes and speed labels.</div>
+  </section>
+  <section>
+    <h2><span class="n">2</span><span class="t">The key idea</span><span class="time">45 s</span></h2>
+    <div class="say"><p>A normal system recognises a car by how it <em>looks</em>, using a trained network. Mine recognises it by how <strong>big it is in real metres</strong>.</p><p>You click four corners of a rectangle of known size on the road, and from those four points the system computes a <strong>homography</strong>: an exact mapping between pixels in the image and metres on the road. After that, position is in metres, so speed is just distance divided by time, and a 4.5-metre object is a car while an 11-metre one is a bus. No training data is needed at all.</p></div>
+    <div class="show">Calibration → <em>Measure a distance</em>, and tap across one lane: about 3.5 m.</div>
+  </section>
+  <section>
+    <h2><span class="n">3</span><span class="t">How it works</span><span class="time">45 s</span></h2>
+    <div class="say"><p>The pipeline has nine stages. It learns what the empty road looks like, finds whatever differs from it, removes cast shadows using colour, and separates the pixels into individual vehicles with morphology, sized for how far each one is from the camera. Then it tracks each vehicle, counts it at a counting line, and measures its speed <strong>two independent ways</strong>: from its position, and from how its texture moves between frames.</p><p>Every stage is explainable. The interface shows each stage's output, the syllabus unit it uses, and the reason it exists.</p></div>
+    <div class="show">The <em>Pipeline</em> view, scrolling through the stage outputs.</div>
+  </section>
+  <section>
+    <h2><span class="n">4</span><span class="t">Results, honestly</span><span class="time">45 s</span></h2>
+    <div class="facts"><div class="fact"><div class="v acc">5 of 8</div><div class="l">targets met, all set before any code</div></div><div class="fact"><div class="v ok">0.54%</div><div class="l">worst calibration error (target 2%)</div></div><div class="fact"><div class="v acc">2.1×</div><div class="l">the texture speed method's accuracy advantage</div></div></div>
+    <div class="say"><p>I set eight measurable targets before writing any code, and I haven't changed any of them since. <strong>Five were met and three weren't.</strong> Calibration is accurate to half a percent, but detection and speed fall short.</p><p>The three misses share one cause, and I proved it: the detection step sometimes splits one vehicle into two pieces, like a roof and a bumper. When I re-ran the same scene with shadows switched off entirely, accuracy barely changed, so shadows weren't the problem. The speed method that doesn't depend on the vehicle's outline is twice as accurate, which confirms the diagnosis.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">5</span><span class="t">Close</span><span class="time">15 s</span></h2>
+    <div class="say"><p>It runs live in the browser, with the real Python code, and it's a measuring tool, not a speed camera: it never labels anything a violation and never reads number plates. Thank you. I'm happy to show any part of it in more detail.</p></div>
+  </section>
+  <section>
+    <h2><span class="n">?</span><span class="t">If they ask one question</span><span class="time"></span></h2>
+    <dl class="qa">
+      <dt>Why not use a neural network like YOLO?</dt>
+      <dd>It would detect better, but it answers a different question. The course is classical
+      image processing, and here the geometry does the detector's job: a vehicle is classified
+      by its size in metres, not by how it looks.</dd>
+      <dt>Why is accuracy below the targets?</dt>
+      <dd>One named cause: the detection step splits a vehicle into pieces. Tuning the later stages
+      barely changed anything, which is how I know the fix belongs in segmentation.</dd>
+      <dt>Is it live or a recording?</dt>
+      <dd>Live. Change a setting and the whole pipeline re-runs on the device. The traffic comes
+      from a built-in simulator, which is what gives exact accuracy figures: every true speed is
+      known.</dd>
+    </dl>
+  </section>
+
+  <div class="links">
+    <a href="explain-long.html">The long version</a>
+    <a href="demo-guide.html">Demo guide</a>
+    <a href="./">One-page overview</a>
+    <a href="../">Open the live console</a>
+  </div>
+
+  <footer>Kerbside · Image and Video Processing course project · classical digital image processing only</footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var themeBtn = document.getElementById("theme");
+    function theme() {
+      var set = root.getAttribute("data-theme");
+      if (set) return set;
+      return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    function label() { themeBtn.textContent = theme() === "dark" ? "Light" : "Dark"; }
+    themeBtn.addEventListener("click", function () {
+      var next = theme() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem("kerbside.explain.theme", next); } catch (e) {}
+      label();
+    });
+    if (window.matchMedia) {
+      var mq = matchMedia("(prefers-color-scheme: dark)");
+      var f = function () { if (!root.getAttribute("data-theme")) label(); };
+      if (mq.addEventListener) mq.addEventListener("change", f); else mq.addListener(f);
+    }
+    label();
+
+    // Text size, for reading from a tablet at arm's length.
+    function scale() { return parseFloat(getComputedStyle(root).getPropertyValue("--scale")) || 1; }
+    function setScale(z) {
+      z = Math.max(0.85, Math.min(1.5, Math.round(z * 100) / 100));
+      root.style.setProperty("--scale", String(z));
+      try { localStorage.setItem("kerbside.explain.scale", String(z)); } catch (e) {}
+    }
+    document.getElementById("smaller").addEventListener("click", function () { setScale(scale() - 0.1); });
+    document.getElementById("larger").addEventListener("click", function () { setScale(scale() + 0.1); });
+  })();
+</script>
+
+</body>
+</html>
